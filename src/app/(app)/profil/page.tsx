@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { getRefs, requireSession } from "@/lib/data";
 import { PageHeader, Soon } from "@/components/ui";
-import { ProfileForm } from "./profile-form";
+import { ProfileSection } from "./profile-form";
 
 export const metadata: Metadata = { title: "Mon profil" };
 
@@ -12,9 +12,10 @@ export default async function ProfilPage() {
 
   return (
     <>
-      <PageHeader title="Mon profil" subtitle="Ton identité dans l'app, tes mains et les héros que tu veux travailler." />
-      <ProfileForm
+      <PageHeader title="Mon profil" subtitle="Ton identité dans l'app, tes mains et ta progression." />
+      <ProfileSection
         heroes={heroes}
+        avatarUrl={profile?.avatar_url ?? null}
         initial={{
           pseudo: profile?.pseudo ?? "",
           main_role: profile?.main_role ?? null,

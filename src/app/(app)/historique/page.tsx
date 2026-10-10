@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requireSession } from "@/lib/data";
 import type { Role } from "@/lib/types";
 import { EmptyState, PageHeader, ResultPill, RoleDot, buttonClass } from "@/components/ui";
+import { ClickableRow } from "@/components/clickable-row";
 import { DeleteMatchButton } from "./delete-button";
 
 export const metadata: Metadata = { title: "Historique" };
@@ -40,7 +41,7 @@ export default async function HistoriquePage() {
     <>
       <PageHeader
         title="Historique"
-        subtitle={rows.length ? `${rows.length} partie${rows.length > 1 ? "s" : ""}, la plus récente en haut.` : undefined}
+        subtitle={rows.length ? `${rows.length} partie${rows.length > 1 ? "s" : ""}, la plus récente en haut. Clique sur une ligne pour voir le détail.` : undefined}
         action={
           <Link href="/saisir" className={buttonClass("primary")}>
             Saisir une partie
@@ -65,7 +66,12 @@ export default async function HistoriquePage() {
               {rows.map((m) => {
                 const heroes = [...m.match_heroes].sort((a, b) => a.position - b.position);
                 return (
-                  <tr key={m.id} className="border-b border-line last:border-0 hover:bg-surface-2">
+                  <ClickableRow
+                    key={m.id}
+                    href={`/historique/${m.id}`}
+                    label={`Voir le détail de la partie du ${new Date(m.played_at).toLocaleDateString("fr-FR")}`}
+                    className="border-b border-line last:border-0 hover:bg-surface-2"
+                  >
                     <td className="whitespace-nowrap px-3 py-2.5 text-fg-2">
                       {new Date(m.played_at).toLocaleString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
                     </td>
@@ -100,7 +106,7 @@ export default async function HistoriquePage() {
                       </Link>
                       <DeleteMatchButton id={m.id} />
                     </td>
-                  </tr>
+                  </ClickableRow>
                 );
               })}
             </tbody>

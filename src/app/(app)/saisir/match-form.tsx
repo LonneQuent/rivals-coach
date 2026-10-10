@@ -2,10 +2,11 @@
 
 import clsx from "clsx";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { Plus, X } from "lucide-react";
-import { ROLES, STAT_FIELDS, type MatchHeroInput, type MatchInput, type Refs, type Role, type StatKey } from "@/lib/types";
-import { RoleDot, buttonClass } from "@/components/ui";
+import { STAT_FIELDS, type MatchHeroInput, type MatchInput, type Refs, type Role, type StatKey } from "@/lib/types";
+import { buttonClass } from "@/components/ui";
+import { HeroCombobox } from "@/components/hero-combobox";
 import { saveMatch } from "./actions";
 
 type HeroRow = { key: number; pick: string; play_minutes: string } & Record<StatKey, string>;
@@ -17,6 +18,14 @@ const toNum = (v: string) => {
   const n = Number(v.replace(",", "."));
   return Number.isFinite(n) && n >= 0 ? n : null;
 };
+/** Garde uniquement des chiffres (entiers) ou un nombre décimal (virgule ou point). */
+const digitsOnly = (v: string) => v.replace(/\D/g, "").slice(0, 7);
+const decimalOnly = (v: string) => {
+  const [int, ...rest] = v.replace(",", ".").replace(/[^\d.]/g, "").split(".");
+  return (rest.length ? `${int}.${rest.join("").slice(0, 2)}` : int).slice(0, 6);
+};
+const DECIMAL_KEYS = new Set(["accuracy", "play_minutes"]);
+
 function localInput(iso?: string) {
   const d = iso ? new Date(iso) : new Date();
   d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
@@ -55,15 +64,7 @@ export function MatchForm({ refs, editing, last }: { refs: Refs; editing: MatchI
     editing ? editing.heroes.map((h) => rowFrom(h)) : [rowFrom(last?.heroes[0], false)],
   );
 
-  const heroOptions = useMemo(
-    () =>
-      ROLES.map((role) => ({
-        role,
-        heroes: refs.heroes.filter((h) => h.roles.includes(role)).sort((a, b) => a.name.localeCompare(b.name, "fr")),
-      })),
-    [refs.heroes],
-  );
-  const usedHeroIds = rows.map((r) => r.pick.split("|")[0]);
+  const usedHeroIds = rows.map((r) => Number(r.pick.split("|")[0])).filter(Boolean);
 
   function updateRow(key: number, patch: Partial<HeroRow>) {
     setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
@@ -166,37 +167,24 @@ export function MatchForm({ refs, editing, last }: { refs: Refs; editing: MatchI
           ) : null}
         </div>
         {rows.map((r, idx) => {
-          const role = r.pick.split("|")[1] as Role | undefined;
           return (
             <fieldset key={r.key} className={clsx("flex flex-col gap-3", idx > 0 && "border-t border-line pt-4")}>
               <legend className="sr-only">Héros {idx + 1}</legend>
               <div className="flex items-end gap-3">
-                <label className="label flex-1" htmlFor={`hero-${r.key}`}>
-                  <span className="flex items-center gap-2">
-                    {role ? <RoleDot role={role} /> : null}
-                    {rows.length > 1 ? `Héros ${idx + 1}` : "Héros"}
-                  </span>
-                  <select id={`hero-${r.key}`} className="field" value={r.pick} onChange={(e) => updateRow(r.key, { pick: e.target.value })} required>
-                    <option value="">Choisir…</option>
-                    {heroOptions.map((g) => (
-                      <optgroup key={g.role} label={g.role}>
-                        {g.heroes.map((h) => {
-                          const v = `${h.id}|${g.role}`;
-                          const takenElsewhere = usedHeroIds.includes(String(h.id)) && r.pick.split("|")[0] !== String(h.id);
-                          return (
-                            <option key={v} value={v} disabled={takenElsewhere}>
-                              {h.name}
-                            </option>
-                          );
-                        })}
-                      </optgroup>
-                    ))}
-                  </select>
-                </label>
+                <div className="min-w-0 flex-1">
+                  <HeroCombobox
+                    id={`hero-${r.key}`}
+                    heroes={refs.heroes}
+                    label={rows.length > 1 ? `Héros ${idx + 1}` : "Héros"}
+                    value={r.pick ? { heroId: Number(r.pick.split("|")[0]), role: r.pick.split("|")[1] as Role } : null}
+                    onChange={(v) => updateRow(r.key, { pick: v ? `${v.heroId}|${v.role}` : "" })}
+                    disabledIds={usedHeroIds}
+                  />
+                </div>
                 {rows.length > 1 ? (
                   <label className="label w-24" htmlFor={`min-${r.key}`}>
                     Minutes
-                    <input id={`min-${r.key}`} className="field tabular" inputMode="decimal" value={r.play_minutes} onChange={(e) => updateRow(r.key, { play_minutes: e.target.value })} />
+                    <input id={`min-${r.key}`} className="field tabular" inputMode="decimal" value={r.play_minutes} onChange={(e) => updateRow(r.key, { play_minutes: decimalOnly(e.target.value) })} />
                   </label>
                 ) : null}
                 {rows.length > 1 ? (
@@ -212,9 +200,11 @@ export function MatchForm({ refs, editing, last }: { refs: Refs; editing: MatchI
                     <input
                       id={`${f.key}-${r.key}`}
                       className="field tabular"
-                      inputMode={f.key === "accuracy" ? "decimal" : "numeric"}
+                      inputMode={DECIMAL_KEYS.has(f.key) ? "decimal" : "numeric"}
+                      pattern={DECIMAL_KEYS.has(f.key) ? "[0-9]*[.,]?[0-9]*" : "[0-9]*"}
+                      autoComplete="off"
                       value={r[f.key]}
-                      onChange={(e) => updateRow(r.key, { [f.key]: e.target.value } as Partial<HeroRow>)}
+                      onChange={(e) => updateRow(r.key, { [f.key]: DECIMAL_KEYS.has(f.key) ? decimalOnly(e.target.value) : digitsOnly(e.target.value) } as Partial<HeroRow>)}
                     />
                   </label>
                 ))}
@@ -274,7 +264,7 @@ export function MatchForm({ refs, editing, last }: { refs: Refs; editing: MatchI
           </label>
           <label className="label" htmlFor="duration">
             Durée (min)
-            <input id="duration" className="field tabular" inputMode="decimal" value={duration} onChange={(e) => setDuration(e.target.value)} />
+            <input id="duration" className="field tabular" inputMode="decimal" value={duration} onChange={(e) => setDuration(decimalOnly(e.target.value))} />
           </label>
           <label className="label" htmlFor="played">
             Date et heure
