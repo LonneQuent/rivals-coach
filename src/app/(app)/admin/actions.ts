@@ -15,6 +15,7 @@ const SCHEMAS = {
     slug: z.string().trim().regex(/^[a-z0-9-]+$/, "Slug : minuscules, chiffres et tirets uniquement.").max(60),
     roles: z.array(z.enum(ROLES)).min(1, "Choisis au moins un rôle.").max(3),
     active: z.boolean(),
+    portrait_url: z.string().url().startsWith("https://").nullable().optional(),
   }),
   maps: z.object({ id, name, game_mode_id: z.number().int().nullable(), active: z.boolean() }),
   game_modes: z.object({ id, name, sort: z.number().int(), active: z.boolean() }),

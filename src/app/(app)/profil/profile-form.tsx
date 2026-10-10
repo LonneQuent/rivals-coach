@@ -90,7 +90,7 @@ function HeroList({ title, heroes, empty }: { title: string; heroes: Hero[]; emp
         <div className="flex flex-wrap gap-1.5">
           {heroes.map((h) => (
             <span key={h.id} className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface-2 py-1 pl-1 pr-3 text-xs font-semibold">
-              <HeroMark name={h.name} role={h.roles[0]} size="sm" />
+              <HeroMark name={h.name} role={h.roles[0]} size="sm" src={h.portrait_url} />
               {h.name}
             </span>
           ))}
@@ -232,7 +232,7 @@ function HeroPicker({ title, hint, heroes, selected, onToggle }: { title: string
               className="inline-flex items-center gap-1.5 rounded-full border border-accent bg-accent/15 py-1 pl-1 pr-2 text-xs font-semibold"
               aria-label={`Retirer ${h.name}`}
             >
-              <HeroMark name={h.name} role={h.roles[0]} size="sm" />
+              <HeroMark name={h.name} role={h.roles[0]} size="sm" src={h.portrait_url} />
               {h.name}
               <X className="size-3.5 text-muted" />
             </button>
@@ -279,10 +279,10 @@ function HeroPicker({ title, hint, heroes, selected, onToggle }: { title: string
                     onClick={() => onToggle(h.id)}
                     className={clsx(
                       "inline-flex items-center gap-1.5 rounded-full border py-1 pl-1 pr-3 text-xs font-semibold transition-colors disabled:opacity-40",
-                      on ? "border-accent bg-accent/15 text-fg" : "border-line bg-surface-2 text-fg-2 hover:border-muted",
+                      on ? "border-accent bg-accent/15 text-fg" : "border-line bg-surface-2 text-fg-2 hover:border-accent/60 hover:text-fg",
                     )}
                   >
-                    <HeroMark name={h.name} role={h.roles[0]} size="sm" />
+                    <HeroMark name={h.name} role={h.roles[0]} size="sm" src={h.portrait_url} />
                     {h.name}
                   </button>
                 );

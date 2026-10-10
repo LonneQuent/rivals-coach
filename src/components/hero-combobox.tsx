@@ -8,7 +8,7 @@ import { HeroMark, RoleDot } from "@/components/ui";
 
 export type HeroPick = { heroId: number; role: Role } | null;
 
-type Option = { heroId: number; role: Role; name: string; multi: boolean };
+type Option = { heroId: number; role: Role; name: string; multi: boolean; src: string | null };
 
 const norm = (s: string) =>
   s
@@ -50,7 +50,7 @@ export function HeroCombobox({
         heroes
           .filter((h) => h.roles.includes(role))
           .sort((a, b) => a.name.localeCompare(b.name, "fr"))
-          .map((h) => ({ heroId: h.id, role, name: h.name, multi: h.roles.length > 1 })),
+          .map((h) => ({ heroId: h.id, role, name: h.name, multi: h.roles.length > 1, src: h.portrait_url ?? null })),
       ),
     [heroes],
   );
@@ -114,7 +114,7 @@ export function HeroCombobox({
         {label}
       </label>
       <div className={clsx("field flex items-center gap-2 py-1.5", open && "border-accent")}>
-        {selected && !open ? <HeroMark name={selected.name} role={selected.role} size="sm" /> : <Search className="size-4 shrink-0 text-muted" aria-hidden />}
+        {selected && !open ? <HeroMark name={selected.name} role={selected.role} size="sm" src={selected.src} /> : <Search className="size-4 shrink-0 text-muted" aria-hidden />}
         <input
           ref={inputRef}
           id={id}
@@ -174,7 +174,7 @@ export function HeroCombobox({
                   taken && "cursor-not-allowed opacity-40",
                 )}
               >
-                <HeroMark name={o.name} role={o.role} size="sm" />
+                <HeroMark name={o.name} role={o.role} size="sm" src={o.src} />
                 <span className="min-w-0 flex-1 truncate font-semibold">{o.name}</span>
                 <span className="flex items-center gap-1.5 text-xs text-muted">
                   <RoleDot role={o.role} />

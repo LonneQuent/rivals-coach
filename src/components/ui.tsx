@@ -21,8 +21,11 @@ export function RoleBadge({ role }: { role: Role }) {
   );
 }
 
-/** Pastille avec les initiales du héros, aux couleurs de son rôle (pas d'illustrations officielles). */
-export function HeroMark({ name, role, size = "md" }: { name: string; role: Role; size?: "sm" | "md" | "lg" }) {
+/**
+ * Pastille du héros : son portrait s'il a été ajouté (Admin > Héros), sinon ses initiales,
+ * toujours cerclée de la couleur de son rôle.
+ */
+export function HeroMark({ name, role, size = "md", src }: { name: string; role: Role; size?: "sm" | "md" | "lg" | "xl"; src?: string | null }) {
   const initials = name
     .replace(/^The /, "")
     .split(/[\s-]+/)
@@ -30,19 +33,26 @@ export function HeroMark({ name, role, size = "md" }: { name: string; role: Role
     .slice(0, 2)
     .map((w) => w[0])
     .join("");
+  const box = clsx(
+    "inline-grid shrink-0 place-items-center overflow-hidden rounded-lg font-display font-bold ring-1",
+    ROLE_STYLES[role].bg,
+    ROLE_STYLES[role].text,
+    ROLE_STYLES[role].ring,
+    size === "sm" && "size-7 text-xs",
+    size === "md" && "size-10 text-sm",
+    size === "lg" && "size-14 text-lg",
+    size === "xl" && "size-24 text-3xl ring-2",
+  );
+  if (src) {
+    return (
+      <span aria-hidden className={box}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={src} alt="" loading="lazy" className="size-full object-cover" />
+      </span>
+    );
+  }
   return (
-    <span
-      aria-hidden
-      className={clsx(
-        "inline-grid shrink-0 place-items-center rounded-lg font-display font-bold ring-1",
-        ROLE_STYLES[role].bg,
-        ROLE_STYLES[role].text,
-        ROLE_STYLES[role].ring,
-        size === "sm" && "size-7 text-xs",
-        size === "md" && "size-10 text-sm",
-        size === "lg" && "size-14 text-lg",
-      )}
-    >
+    <span aria-hidden className={box}>
       {initials}
     </span>
   );
@@ -84,9 +94,9 @@ export function EmptyState({ title, body, href, cta }: { title: string; body: st
 
 export function buttonClass(variant: "primary" | "default" | "ghost" | "danger" = "default", extra?: string) {
   return clsx(
-    "inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50",
-    variant === "primary" && "bg-accent text-accent-ink hover:brightness-105",
-    variant === "default" && "border border-line bg-surface-2 hover:border-muted",
+    "inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition-[color,background-color,border-color,box-shadow,transform] duration-150 hover:-translate-y-px active:translate-y-0 disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50",
+    variant === "primary" && "bg-accent text-accent-ink hover:brightness-110 hover:shadow-lg hover:shadow-accent/20",
+    variant === "default" && "border border-line bg-surface-2 hover:border-accent/60 hover:bg-surface-3",
     variant === "ghost" && "text-fg-2 hover:bg-surface-2 hover:text-fg",
     variant === "danger" && "text-bad hover:bg-bad-bg",
     extra,

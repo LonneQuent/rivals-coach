@@ -148,7 +148,7 @@ export function MatchForm({ refs, editing, last }: { refs: Refs; editing: MatchI
             }}
             className={clsx(
               "rounded-xl border py-4 font-display text-xl font-bold uppercase tracking-wider transition-colors",
-              result === r ? (r === "win" ? "border-good bg-good-bg text-good" : "border-bad bg-bad-bg text-bad") : "border-line bg-surface text-fg-2 hover:border-muted",
+              result === r ? (r === "win" ? "border-good bg-good-bg text-good" : "border-bad bg-bad-bg text-bad") : "border-line bg-surface text-fg-2 hover:border-accent/60 hover:text-fg",
             )}
           >
             {r === "win" ? "Victoire" : "Défaite"}
@@ -338,7 +338,7 @@ function Chip({ on, onClick, children, role, className }: { on: boolean; onClick
       onClick={onClick}
       className={clsx(
         "inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-semibold transition-colors",
-        on ? "border-accent bg-accent/15 text-fg" : "border-line bg-surface-2 text-fg-2 hover:border-muted",
+        on ? "border-accent bg-accent/15 text-fg" : "border-line bg-surface-2 text-fg-2 hover:border-accent/60 hover:text-fg",
         className,
       )}
     >

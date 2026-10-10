@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { AlertTriangle, ExternalLink } from "lucide-react";
 import type { GuideContent } from "@/lib/guides";
-import type { Hero } from "@/lib/types";
+import type { Hero, Role } from "@/lib/types";
 import { HeroMark } from "@/components/ui";
+import { SectionIcon } from "@/components/illustrations";
 
 /** Affichage d'un guide (héros ou rôle) : sections compactes, counters et synergies avec liens vers les fiches. */
-export function GuideView({ content, heroes }: { content: GuideContent; heroes: Hero[] }) {
+export function GuideView({ content, heroes, role }: { content: GuideContent; heroes: Hero[]; role: Role }) {
   const bySlug = new Map(heroes.map((h) => [h.slug, h]));
   return (
     <div className="flex flex-col gap-5">
@@ -21,7 +22,10 @@ export function GuideView({ content, heroes }: { content: GuideContent; heroes: 
         <div className="grid min-w-0 gap-4 md:grid-cols-2">
           {content.sections.map((s) => (
             <section key={s.title} className="card flex flex-col gap-3">
-              <h2 className="text-lg uppercase tracking-wide">{s.title}</h2>
+              <h2 className="flex items-center gap-3 text-lg uppercase tracking-wide">
+                <SectionIcon title={s.title} role={role} />
+                <SectionTitle title={s.title} />
+              </h2>
               <ul className="flex flex-col gap-2 text-sm text-fg-2">
                 {s.items.map((it, i) => (
                   <li key={i} className="flex gap-2">
@@ -64,6 +68,18 @@ export function GuideView({ content, heroes }: { content: GuideContent; heroes: 
   );
 }
 
+/** « Soin (Joyful Splash) » : le nom de la capacité passe en petite étiquette sous le titre. */
+function SectionTitle({ title }: { title: string }) {
+  const m = title.match(/^(.*?)\s*\((.+)\)\s*$/);
+  if (!m) return <span>{title}</span>;
+  return (
+    <span className="flex flex-col leading-tight">
+      <span>{m[1]}</span>
+      <span className="font-sans text-xs font-semibold normal-case tracking-normal text-muted">{m[2]}</span>
+    </span>
+  );
+}
+
 function HeroNotes({ title, tone, items, bySlug }: { title: string; tone: "good" | "bad"; items: { hero: string; note: string }[]; bySlug: Map<string, Hero> }) {
   return (
     <section className="card flex flex-col gap-3">
@@ -73,7 +89,7 @@ function HeroNotes({ title, tone, items, bySlug }: { title: string; tone: "good"
           const h = bySlug.get(it.hero);
           return (
             <li key={i} className="flex gap-3">
-              {h ? <HeroMark name={h.name} role={h.roles[0]} size="sm" /> : null}
+              {h ? <HeroMark name={h.name} role={h.roles[0]} size="sm" src={h.portrait_url} /> : null}
               <div className="min-w-0 text-sm">
                 {h ? (
                   <Link href={`/heros/${h.slug}`} className="font-semibold hover:text-accent">

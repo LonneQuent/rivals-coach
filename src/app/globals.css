@@ -60,6 +60,19 @@ textarea {
   font: inherit;
 }
 
+/* Tailwind 4 remet le curseur par défaut sur les boutons : tout ce qui est cliquable affiche la main */
+button:not(:disabled),
+[role="button"],
+[role="radio"],
+[role="checkbox"],
+[role="option"],
+select,
+summary,
+label:has(> input[type="checkbox"]),
+input[type="range"] {
+  cursor: pointer;
+}
+
 .tabular {
   font-variant-numeric: tabular-nums;
 }
@@ -76,6 +89,13 @@ textarea {
   }
   .card {
     @apply rounded-xl border border-line bg-surface p-4 sm:p-5;
+  }
+  /* Élément cliquable (carte, ligne de liste) : il ressort au survol et au focus clavier */
+  .lift {
+    @apply transition-[transform,border-color,background-color,box-shadow] duration-150 hover:-translate-y-0.5 hover:border-accent/60 hover:bg-surface-2 hover:shadow-lg hover:shadow-black/40 focus-visible:border-accent/60;
+  }
+  .lift:active {
+    @apply translate-y-0;
   }
 }
 

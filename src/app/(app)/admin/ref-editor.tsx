@@ -4,7 +4,8 @@ import clsx from "clsx";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { ROLES, type Role } from "@/lib/types";
-import { RoleDot, buttonClass } from "@/components/ui";
+import { HeroMark, RoleDot, buttonClass } from "@/components/ui";
+import { createClient } from "@/lib/supabase/client";
 import { saveRef, type RefTable } from "./actions";
 
 type Row = Record<string, unknown> & { _key: string; _dirty?: boolean; _msg?: { ok: boolean; text: string } };
@@ -40,6 +41,26 @@ export function RefEditor({ table, rows: initial, gameModes }: { table: RefTable
     };
   };
 
+  const [uploading, setUploading] = useState<string | null>(null);
+
+  /** Envoie l'image dans le stockage Supabase (réservé aux admins) puis enregistre son adresse sur le héros. */
+  async function uploadPortrait(row: Row, file: File) {
+    if (!/^image\/(png|jpeg|webp)$/.test(file.type)) return setRows((rs) => rs.map((r) => (r._key === row._key ? { ...r, _msg: { ok: false, text: "Format accepté : PNG, JPG ou WebP." } } : r)));
+    if (file.size > 2 * 1024 * 1024) return setRows((rs) => rs.map((r) => (r._key === row._key ? { ...r, _msg: { ok: false, text: "Image trop lourde (2 Mo maximum)." } } : r)));
+    setUploading(row._key);
+    const supabase = createClient();
+    const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
+    const path = `${String(row.slug || "hero")}-${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from("hero-portraits").upload(path, file, { upsert: true, contentType: file.type, cacheControl: "31536000" });
+    setUploading(null);
+    if (error) {
+      setRows((rs) => rs.map((r) => (r._key === row._key ? { ...r, _msg: { ok: false, text: "Envoi impossible : as-tu exécuté la migration 0005 ?" } } : r)));
+      return;
+    }
+    const url = supabase.storage.from("hero-portraits").getPublicUrl(path).data.publicUrl;
+    save({ ...row, portrait_url: url });
+  }
+
   function patch(key: string, p: Record<string, unknown>) {
     setRows((rs) => rs.map((r) => (r._key === key ? { ...r, ...p, _dirty: true, _msg: undefined } : r)));
   }
@@ -61,6 +82,7 @@ export function RefEditor({ table, rows: initial, gameModes }: { table: RefTable
         <thead>
           <tr className="border-b border-line text-left">
             {orderKey ? <th className="eyebrow w-20 px-3 py-2.5">Ordre</th> : null}
+            {table === "heroes" ? <th className="eyebrow w-28 px-3 py-2.5">Portrait</th> : null}
             <th className="eyebrow px-3 py-2.5">Nom</th>
             {table === "heroes" ? <th className="eyebrow px-3 py-2.5">Rôles</th> : null}
             {table === "maps" ? <th className="eyebrow px-3 py-2.5">Type de mode</th> : null}
@@ -74,6 +96,27 @@ export function RefEditor({ table, rows: initial, gameModes }: { table: RefTable
               {orderKey ? (
                 <td className="px-3 py-2">
                   <input aria-label="Ordre" className="field tabular py-1.5" inputMode="numeric" value={String(r[orderKey] ?? "")} onChange={(e) => patch(r._key, { [orderKey]: Number(e.target.value) || 0 })} />
+                </td>
+              ) : null}
+              {table === "heroes" ? (
+                <td className="px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <HeroMark name={String(r.name || "?")} role={((r.roles as Role[]) ?? [])[0] ?? "Vanguard"} size="md" src={(r.portrait_url as string | null) ?? null} />
+                    <label className={buttonClass("ghost", "px-2 py-1 text-xs")}>
+                      {uploading === r._key ? "Envoi…" : r.portrait_url ? "Changer" : "Ajouter"}
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        className="sr-only"
+                        disabled={!r.id || uploading !== null}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          e.target.value = "";
+                          if (f) void uploadPortrait(r, f);
+                        }}
+                      />
+                    </label>
+                  </div>
                 </td>
               ) : null}
               <td className="px-3 py-2">

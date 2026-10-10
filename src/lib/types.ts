@@ -16,6 +16,7 @@ export interface Hero {
   name: string;
   roles: Role[];
   active: boolean;
+  portrait_url?: string | null;
 }
 
 export interface GameMode { id: number; name: string; active: boolean; sort: number }

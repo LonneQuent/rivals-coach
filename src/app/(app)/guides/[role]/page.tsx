@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { getRefs, requireSession } from "@/lib/data";
 import { parseContent, roleFromSlug, roleSlug } from "@/lib/guides";
 import { GuideView } from "@/components/guide-view";
-import { HeroMark, RoleDot, buttonClass } from "@/components/ui";
+import { HeroMark, buttonClass } from "@/components/ui";
+import { GuideBanner } from "@/components/illustrations";
 
 export default async function RoleGuidePage({ params }: { params: Promise<{ role: string }> }) {
   const { role: slug } = await params;
@@ -24,22 +25,16 @@ export default async function RoleGuidePage({ params }: { params: Promise<{ role
       <Link href="/" className="text-sm text-muted hover:text-fg">
         ← Accueil
       </Link>
-      <section className="flex flex-wrap items-end justify-between gap-4">
-        <div className="min-w-0">
-          <p className="eyebrow flex items-center gap-2">
-            <RoleDot role={role} /> Guide du rôle
-          </p>
-          <h1 className="text-3xl uppercase tracking-wide sm:text-4xl">Jouer {role}</h1>
-        </div>
+      <GuideBanner role={role} eyebrow="Guide du rôle" title={`Jouer ${role}`} subtitle={<p className="text-sm text-fg-2">{roleHeroes.length} héros dans ce rôle</p>}>
         {profile?.is_admin ? (
           <Link href={`/admin/guides/role/${roleSlug(role)}`} className={buttonClass("default")}>
             {guide ? "Modifier le guide" : "Créer le guide"}
           </Link>
         ) : null}
-      </section>
+      </GuideBanner>
 
       {guide ? (
-        <GuideView content={parseContent(guide.content)} heroes={heroes} />
+        <GuideView content={parseContent(guide.content)} heroes={heroes} role={role} />
       ) : (
         <div className="card text-sm text-fg-2">Le guide de ce rôle arrive bientôt.</div>
       )}
@@ -49,8 +44,8 @@ export default async function RoleGuidePage({ params }: { params: Promise<{ role
         <ul className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-4">
           {roleHeroes.map((h) => (
             <li key={h.id}>
-              <Link href={`/heros/${h.slug}`} className="flex items-center gap-3 rounded-lg border border-line bg-surface px-3 py-2 hover:border-muted hover:bg-surface-2">
-                <HeroMark name={h.name} role={role} size="sm" />
+              <Link href={`/heros/${h.slug}`} className="lift flex items-center gap-3 rounded-lg border border-line bg-surface px-3 py-2">
+                <HeroMark name={h.name} role={role} size="sm" src={h.portrait_url} />
                 <span className="min-w-0 flex-1 truncate text-sm font-semibold">{h.name}</span>
                 {withGuide.has(h.id) ? <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[11px] font-semibold text-accent">Fiche</span> : null}
               </Link>

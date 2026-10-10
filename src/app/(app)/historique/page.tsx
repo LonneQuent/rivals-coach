@@ -70,7 +70,7 @@ export default async function HistoriquePage() {
                     key={m.id}
                     href={`/historique/${m.id}`}
                     label={`Voir le détail de la partie du ${new Date(m.played_at).toLocaleDateString("fr-FR")}`}
-                    className="border-b border-line last:border-0 hover:bg-surface-2"
+                    className="border-b border-line transition-colors last:border-0 hover:bg-surface-3 focus-visible:bg-surface-3 [&>td:first-child]:border-l-2 [&>td:first-child]:border-transparent hover:[&>td:first-child]:border-accent"
                   >
                     <td className="whitespace-nowrap px-3 py-2.5 text-fg-2">
                       {new Date(m.played_at).toLocaleString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}

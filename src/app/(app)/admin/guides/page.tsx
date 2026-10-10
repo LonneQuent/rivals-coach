@@ -32,7 +32,7 @@ export default async function AdminGuidesPage() {
       <PageHeader title="Guides" subtitle={`${heroStatus.size} fiche${heroStatus.size > 1 ? "s" : ""} héros et ${roleStatus.size} guide${roleStatus.size > 1 ? "s" : ""} de rôle. Clique pour rédiger ou modifier.`} />
       <section className="grid gap-3 sm:grid-cols-3">
         {ROLES.map((r) => (
-          <Link key={r} href={`/admin/guides/role/${roleSlug(r)}`} className="card flex items-center gap-3 py-3 hover:border-muted hover:bg-surface-2">
+          <Link key={r} href={`/admin/guides/role/${roleSlug(r)}`} className="card lift flex items-center gap-3 py-3">
             <RoleDot role={r} className="size-3" />
             <span className="flex-1 font-display text-lg font-bold uppercase">Rôle {r}</span>
             {badge(roleStatus.get(r))}
@@ -50,8 +50,8 @@ export default async function AdminGuidesPage() {
                 .filter((h) => h.roles[0] === role)
                 .map((h) => (
                   <li key={h.id}>
-                    <Link href={`/admin/guides/hero/${h.slug}`} className="flex items-center gap-3 rounded-lg border border-line bg-surface px-3 py-2 hover:border-muted hover:bg-surface-2">
-                      <HeroMark name={h.name} role={role} size="sm" />
+                    <Link href={`/admin/guides/hero/${h.slug}`} className="lift flex items-center gap-3 rounded-lg border border-line bg-surface px-3 py-2">
+                      <HeroMark name={h.name} role={role} size="sm" src={h.portrait_url} />
                       <span className="min-w-0 flex-1 truncate text-sm font-semibold">{h.name}</span>
                       {badge(heroStatus.get(h.id))}
                     </Link>

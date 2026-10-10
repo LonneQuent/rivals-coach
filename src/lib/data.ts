@@ -22,7 +22,12 @@ export async function getRefs(all = false): Promise<Refs> {
   const only = <T,>(q: PromiseLike<{ data: T[] | null }>) => q.then((r) => r.data ?? []);
   const active = (q: any) => (all ? q : q.eq("active", true));
   const [heroes, gameModes, maps, queues, ranks, tags] = await Promise.all([
-    only<Hero>(active(supabase.from("heroes").select("id, slug, name, roles, active")).order("name")),
+    // portrait_url arrive avec la migration 0005 : si elle n'est pas encore passée, on relit sans cette colonne
+    active(supabase.from("heroes").select("id, slug, name, roles, active, portrait_url"))
+      .order("name")
+      .then(async (r: { data: Hero[] | null; error: unknown }) =>
+        r.error ? ((await active(supabase.from("heroes").select("id, slug, name, roles, active")).order("name")).data ?? []) : (r.data ?? []),
+      ) as Promise<Hero[]>,
     only<GameMode>(active(supabase.from("game_modes").select("id, name, active, sort")).order("sort")),
     only<MapRef>(active(supabase.from("maps").select("id, name, game_mode_id, active")).order("name")),
     only<Queue>(active(supabase.from("queues").select("id, name, active, sort")).order("sort")),

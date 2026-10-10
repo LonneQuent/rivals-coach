@@ -73,7 +73,7 @@ export function FocusAreas({ initial }: { initial: string[] }) {
       </form>
       <div className="flex flex-wrap gap-1.5">
         {SUGGESTIONS.filter((s) => !items.includes(s)).map((s) => (
-          <button key={s} type="button" disabled={pending || items.length >= 8} onClick={() => add(s)} className="rounded-full border border-dashed border-line px-2.5 py-1 text-xs font-semibold text-fg-2 hover:border-muted disabled:opacity-40">
+          <button key={s} type="button" disabled={pending || items.length >= 8} onClick={() => add(s)} className="rounded-full border border-dashed border-line px-2.5 py-1 text-xs font-semibold text-fg-2 hover:border-accent/60 hover:text-fg disabled:opacity-40">
             + {s}
           </button>
         ))}

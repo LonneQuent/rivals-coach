@@ -3,6 +3,7 @@ import { getRefs, requireSession } from "@/lib/data";
 import { ROLES } from "@/lib/types";
 import { roleSlug } from "@/lib/guides";
 import { HeroMark, RoleDot, buttonClass } from "@/components/ui";
+import { RoleEmblem } from "@/components/illustrations";
 
 export default async function HomePage() {
   const { supabase, user, profile } = await requireSession();
@@ -54,9 +55,9 @@ export default async function HomePage() {
           <Link
             key={role}
             href={`/guides/${roleSlug(role)}`}
-            className="card flex items-center gap-3 py-3 transition-colors hover:border-muted hover:bg-surface-2"
+            className="card lift flex items-center gap-3 py-3"
           >
-            <RoleDot role={role} className="size-3" />
+            <RoleEmblem role={role} className="size-11 shrink-0" />
             <div className="min-w-0 flex-1">
               <p className="font-display text-lg font-bold uppercase tracking-wide">Jouer {role}</p>
               <p className="text-xs text-muted">{roleGuide.has(role) ? "Guide du rôle disponible" : "Guide à venir"}</p>
@@ -79,8 +80,8 @@ export default async function HomePage() {
               <ul className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
                 {list.map((h) => (
                   <li key={`${role}-${h.id}`}>
-                    <Link href={`/heros/${h.slug}`} className="flex items-center gap-3 rounded-lg border border-line bg-surface px-3 py-2 transition-colors hover:border-muted hover:bg-surface-2">
-                      <HeroMark name={h.name} role={role} size="sm" />
+                    <Link href={`/heros/${h.slug}`} className="lift flex items-center gap-3 rounded-lg border border-line bg-surface px-3 py-2">
+                      <HeroMark name={h.name} role={role} size="sm" src={h.portrait_url} />
                       <span className="min-w-0 flex-1 truncate text-sm font-semibold">{h.name}</span>
                       {heroGuide.has(h.id) ? <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[11px] font-semibold text-accent">Fiche</span> : null}
                     </Link>
