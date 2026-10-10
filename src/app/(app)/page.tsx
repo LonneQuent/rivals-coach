@@ -1,14 +1,19 @@
 import Link from "next/link";
 import { getRefs, requireSession } from "@/lib/data";
 import { ROLES } from "@/lib/types";
+import { roleSlug } from "@/lib/guides";
 import { HeroMark, RoleDot, buttonClass } from "@/components/ui";
 
 export default async function HomePage() {
   const { supabase, user, profile } = await requireSession();
-  const [{ heroes }, recent] = await Promise.all([
+  const [{ heroes }, recent, guidesRes] = await Promise.all([
     getRefs(),
     supabase.from("matches").select("id, result, played_at").eq("user_id", user.id).order("played_at", { ascending: false }).limit(10),
+    supabase.from("guides").select("kind, hero_id, role").eq("status", "published"),
   ]);
+  const guides = (guidesRes.data ?? []) as { kind: "hero" | "role"; hero_id: number | null; role: string | null }[];
+  const heroGuide = new Set(guides.filter((g) => g.kind === "hero").map((g) => g.hero_id));
+  const roleGuide = new Set(guides.filter((g) => g.kind === "role").map((g) => g.role));
   const last = (recent.data ?? []) as { id: string; result: "win" | "loss"; played_at: string }[];
   const wins = last.filter((m) => m.result === "win").length;
 
@@ -44,6 +49,23 @@ export default async function HomePage() {
         </div>
       </section>
 
+      <section className="grid gap-3 sm:grid-cols-3" aria-label="Guides de rôle">
+        {ROLES.map((role) => (
+          <Link
+            key={role}
+            href={`/guides/${roleSlug(role)}`}
+            className="card flex items-center gap-3 py-3 transition-colors hover:border-muted hover:bg-surface-2"
+          >
+            <RoleDot role={role} className="size-3" />
+            <div className="min-w-0 flex-1">
+              <p className="font-display text-lg font-bold uppercase tracking-wide">Jouer {role}</p>
+              <p className="text-xs text-muted">{roleGuide.has(role) ? "Guide du rôle disponible" : "Guide à venir"}</p>
+            </div>
+            <span aria-hidden className="text-muted">→</span>
+          </Link>
+        ))}
+      </section>
+
       <div className="grid gap-6 lg:grid-cols-3">
         {ROLES.map((role) => {
           const list = heroes.filter((h) => h.roles.includes(role));
@@ -59,7 +81,8 @@ export default async function HomePage() {
                   <li key={`${role}-${h.id}`}>
                     <Link href={`/heros/${h.slug}`} className="flex items-center gap-3 rounded-lg border border-line bg-surface px-3 py-2 transition-colors hover:border-muted hover:bg-surface-2">
                       <HeroMark name={h.name} role={role} size="sm" />
-                      <span className="min-w-0 truncate text-sm font-semibold">{h.name}</span>
+                      <span className="min-w-0 flex-1 truncate text-sm font-semibold">{h.name}</span>
+                      {heroGuide.has(h.id) ? <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[11px] font-semibold text-accent">Fiche</span> : null}
                     </Link>
                   </li>
                 ))}
