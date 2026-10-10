@@ -5,8 +5,8 @@ import { LoginForm } from "./login-form";
 
 export const metadata: Metadata = { title: "Connexion" };
 
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string; error?: string }> }) {
-  const { next, error } = await searchParams;
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string; error?: string; reason?: string }> }) {
+  const { next, error, reason } = await searchParams;
   const { user } = await getUser();
   if (user) redirect(safeNext(next));
 
@@ -22,6 +22,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         {error ? (
           <p role="alert" className="rounded-lg bg-bad-bg px-3 py-2 text-sm text-bad">
             La connexion a échoué. Réessaie, ou utilise l&apos;autre méthode.
+            {reason ? <span className="mt-1 block text-xs opacity-80">Détail : {reason}</span> : null}
           </p>
         ) : null}
         <LoginForm next={safeNext(next)} />
