@@ -9,7 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 import { HeroMark, buttonClass } from "@/components/ui";
 import { saveRef } from "./actions";
 
-type Item = { file: File; preview: string; heroId: number | null; status: "ready" | "sending" | "done" | "error"; error?: string };
+type Item = { file: File; preview: string; heroId: number | null; status: "ready" | "skipped" | "sending" | "done" | "error"; error?: string };
 
 const norm = (s: string) =>
   s
@@ -21,6 +21,9 @@ const norm = (s: string) =>
 
 // Mots fréquents dans les noms de fichiers d'avatars, ignorés pour l'association
 const NOISE = /(avatar|icon|portrait|profile|hero|square|default|thumbnail|thumb|marvel|rivals|img|image|\d+)/g;
+
+// Noms de fichiers qui trahissent une compétence, un skin ou un visuel qui n'est pas un portrait
+const NOT_PORTRAIT = /(skill|abilit|spell|ultimate|\bult\b|passive|skin|costume|emote|spray|banner|splash|nameplate|card|mvp|weapon|team.?up|key.?art|wallpaper|lord)/i;
 
 /** Associe un nom de fichier à un héros : « Luna_Snow_Avatar.png » → Luna Snow. */
 function matchHero(filename: string, heroes: Hero[]): number | null {
@@ -50,8 +53,24 @@ export function BulkPortraits({ heroes }: { heroes: Hero[] }) {
     if (!list) return;
     const next: Item[] = [...list]
       .filter((f) => /^image\/(png|jpeg|webp)$/.test(f.type))
-      .map((file) => ({ file, preview: URL.createObjectURL(file), heroId: matchHero(file.name, heroes), status: file.size > 2 * 1024 * 1024 ? "error" : "ready", error: file.size > 2 * 1024 * 1024 ? "Plus de 2 Mo" : undefined }));
+      .map((file): Item => {
+        const preview = URL.createObjectURL(file);
+        if (file.size > 2 * 1024 * 1024) return { file, preview, heroId: null, status: "error", error: "Plus de 2 Mo" };
+        if (NOT_PORTRAIT.test(file.name)) return { file, preview, heroId: matchHero(file.name, heroes), status: "skipped", error: "Écartée : le nom évoque une compétence ou un skin" };
+        return { file, preview, heroId: matchHero(file.name, heroes), status: "ready" };
+      });
     setItems((xs) => [...xs, ...next]);
+    // Vérifie le format : un portrait est carré et fait au moins 150 px
+    next.forEach((it) => {
+      if (it.status !== "ready") return;
+      const img = new Image();
+      img.onload = () => {
+        const r = img.naturalWidth / img.naturalHeight;
+        const reason = r < 0.85 || r > 1.18 ? "Écartée : image pas carrée (skin ou illustration ?)" : Math.max(img.naturalWidth, img.naturalHeight) < 150 ? "Écartée : trop petite (icône de compétence ?)" : null;
+        if (reason) setItems((xs) => xs.map((x) => (x.preview === it.preview && x.status === "ready" ? { ...x, status: "skipped", error: reason } : x)));
+      };
+      img.src = it.preview;
+    });
   }
 
   async function sendAll() {
@@ -84,6 +103,8 @@ export function BulkPortraits({ heroes }: { heroes: Hero[] }) {
       <div>
         <h2 className="text-lg uppercase tracking-wide">Import groupé des portraits</h2>
         <p className="text-sm text-muted">
+          <a href="/admin/portraits" className="font-semibold text-accent hover:underline">Trier les images déjà envoyées →</a>
+          <br />
           Dépose plusieurs images d&apos;un coup. Chaque fichier est associé au héros dont le nom apparaît dans son nom de fichier (ex. « Luna_Snow.png »). Vérifie les associations, puis envoie.
         </p>
       </div>
@@ -115,7 +136,7 @@ export function BulkPortraits({ heroes }: { heroes: Hero[] }) {
             {items.map((it, i) => {
               const hero = it.heroId ? byId.get(it.heroId) : undefined;
               return (
-                <li key={i} className={clsx("flex items-center gap-3 rounded-lg border px-2 py-2", it.status === "done" ? "border-good/60" : it.status === "error" || !hero ? "border-bad/50" : "border-line")}>
+                <li key={i} className={clsx("flex items-center gap-3 rounded-lg border px-2 py-2", it.status === "done" ? "border-good/60" : it.status === "error" || it.status === "skipped" || !hero ? "border-bad/50" : "border-line")}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={it.preview} alt="" className="size-12 shrink-0 rounded-md object-cover" />
                   <div className="min-w-0 flex-1">
@@ -136,9 +157,14 @@ export function BulkPortraits({ heroes }: { heroes: Hero[] }) {
                         </option>
                       ))}
                     </select>
-                    <p className={clsx("mt-1 text-xs", it.status === "done" ? "text-good" : it.status === "error" ? "text-bad" : "text-muted")}>
-                      {it.status === "done" ? "Envoyé" : it.status === "sending" ? "Envoi…" : it.status === "error" ? it.error : hero?.portrait_url ? "Remplacera le portrait actuel" : "Prêt"}
+                    <p className={clsx("mt-1 text-xs", it.status === "done" ? "text-good" : it.status === "error" || it.status === "skipped" ? "text-bad" : "text-muted")}>
+                      {it.status === "done" ? "Envoyé" : it.status === "sending" ? "Envoi…" : it.status === "error" || it.status === "skipped" ? it.error : hero?.portrait_url ? "Remplacera le portrait actuel" : "Prêt"}
                     </p>
+                    {it.status === "skipped" ? (
+                      <button type="button" className="mt-0.5 text-xs font-semibold text-accent hover:underline" onClick={() => setItems((xs) => xs.map((x, j) => (j === i ? { ...x, status: "ready", error: undefined } : x)))}>
+                        Garder quand même
+                      </button>
+                    ) : null}
                   </div>
                   {hero ? <HeroMark name={hero.name} role={hero.roles[0]} size="md" src={hero.portrait_url} /> : null}
                 </li>

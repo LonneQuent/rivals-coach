@@ -48,6 +48,9 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
             {LABELS[x]}
           </a>
         ))}
+        <a href="/admin/portraits" className="whitespace-nowrap border-b-2 border-transparent px-3 py-2 font-display text-sm font-semibold uppercase tracking-wider text-muted hover:text-fg">
+          Portraits
+        </a>
         <a href="/admin/guides" className="whitespace-nowrap border-b-2 border-transparent px-3 py-2 font-display text-sm font-semibold uppercase tracking-wider text-muted hover:text-fg">
           Guides
         </a>
