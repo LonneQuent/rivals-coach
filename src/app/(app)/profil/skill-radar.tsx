@@ -19,7 +19,27 @@ function point(i: number, n: number, value: number) {
 }
 
 /** Radar de compétences : ta dernière auto-évaluation, comparée à la précédente et à la note de ton coach. */
-export function SkillRadar({ current, previous, coach, facts }: { current: Series | null; previous: Series | null; coach: Series | null; facts: Partial<Record<SkillKey, string>> }) {
+export function SkillRadar({
+  current,
+  previous,
+  coach,
+  facts,
+  playerId,
+  mineLabel = "Toi",
+  overlayLabel = "Coach",
+  intro = "Note-toi de 1 à 10 sur chaque axe. Refais-le régulièrement pour voir ta progression.",
+  editLabel = "Mettre à jour mon évaluation",
+}: {
+  current: Series | null;
+  previous: Series | null;
+  coach: Series | null;
+  facts: Partial<Record<SkillKey, string>>;
+  playerId?: string;
+  mineLabel?: string;
+  overlayLabel?: string;
+  intro?: string;
+  editLabel?: string;
+}) {
   const router = useRouter();
   const [editing, setEditing] = useState(!current);
   const [draft, setDraft] = useState<Record<SkillKey, number>>(() => Object.fromEntries(SKILL_AXES.map((a) => [a.key, current?.scores[a.key] ?? 5])) as Record<SkillKey, number>);
@@ -34,7 +54,7 @@ export function SkillRadar({ current, previous, coach, facts }: { current: Serie
   function save() {
     setError(null);
     start(async () => {
-      const res = await saveEvaluation(draft);
+      const res = await saveEvaluation(draft, playerId);
       if (!res.ok) return setError(res.error ?? "Erreur.");
       setEditing(false);
       router.refresh();
@@ -46,11 +66,11 @@ export function SkillRadar({ current, previous, coach, facts }: { current: Serie
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-lg uppercase tracking-wide">Radar de compétences</h2>
-          <p className="text-sm text-muted">Note-toi de 1 à 10 sur chaque axe. Refais-le régulièrement pour voir ta progression.</p>
+          <p className="text-sm text-muted">{intro}</p>
         </div>
         {!editing ? (
           <button type="button" onClick={() => setEditing(true)} className={buttonClass("default")}>
-            Mettre à jour mon évaluation
+            {editLabel}
           </button>
         ) : null}
       </div>
@@ -96,7 +116,7 @@ export function SkillRadar({ current, previous, coach, facts }: { current: Serie
           <ul className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-fg-2">
             {shown ? (
               <li className="flex items-center gap-1.5">
-                <span className="h-0.5 w-4 bg-accent" aria-hidden /> {editing ? "En cours" : `Toi${current ? `, ${new Date(current.date).toLocaleDateString("fr-FR")}` : ""}`}
+                <span className="h-0.5 w-4 bg-accent" aria-hidden /> {editing ? "En cours" : `${mineLabel}${current ? `, ${new Date(current.date).toLocaleDateString("fr-FR")}` : ""}`}
               </li>
             ) : null}
             {previous && !editing ? (
@@ -106,7 +126,7 @@ export function SkillRadar({ current, previous, coach, facts }: { current: Serie
             ) : null}
             {coach ? (
               <li className="flex items-center gap-1.5">
-                <span className="h-0.5 w-4 bg-van" aria-hidden /> Coach, {new Date(coach.date).toLocaleDateString("fr-FR")}
+                <span className="h-0.5 w-4 bg-van" aria-hidden /> {overlayLabel}, {new Date(coach.date).toLocaleDateString("fr-FR")}
               </li>
             ) : null}
           </ul>
@@ -154,7 +174,7 @@ export function SkillRadar({ current, previous, coach, facts }: { current: Serie
       {editing ? (
         <div className="flex flex-wrap items-center gap-3">
           <button type="button" disabled={pending} onClick={save} className={buttonClass("primary")}>
-            {pending ? "Enregistrement…" : "Enregistrer mon évaluation"}
+            {pending ? "Enregistrement…" : "Enregistrer l'évaluation"}
           </button>
           {current ? (
             <button type="button" className={buttonClass("ghost")} onClick={() => setEditing(false)}>

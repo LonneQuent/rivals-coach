@@ -9,9 +9,9 @@ import { ROLES, type Role } from "@/lib/types";
 import { buttonClass } from "@/components/ui";
 import { addGoal, removeGoal } from "./actions";
 
-export type GoalView = { id: string; metric: MetricKey; op: "<=" | ">="; target: number; role: Role | null; fromCoach: boolean; value: number | null; met: boolean; games: number };
+export type GoalView = { id: string; metric: MetricKey; op: "<=" | ">="; target: number; role: Role | null; badge: string | null; canRemove: boolean; value: number | null; met: boolean; games: number };
 
-export function GoalsPanel({ goals }: { goals: GoalView[] }) {
+export function GoalsPanel({ goals, playerId, title = "Objectifs" }: { goals: GoalView[]; playerId?: string; title?: string }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [metric, setMetric] = useState<MetricKey>("deaths");
@@ -26,7 +26,7 @@ export function GoalsPanel({ goals }: { goals: GoalView[] }) {
     if (!target.trim() || !Number.isFinite(t) || t < 0) return setError("Indique une valeur cible.");
     setError(null);
     start(async () => {
-      const res = await addGoal({ metric, op: better === "up" ? ">=" : "<=", target: t, role: role || null });
+      const res = await addGoal({ metric, op: better === "up" ? ">=" : "<=", target: t, role: role || null }, playerId);
       if (!res.ok) return setError(res.error ?? "Erreur.");
       setTarget("");
       router.refresh();
@@ -36,7 +36,7 @@ export function GoalsPanel({ goals }: { goals: GoalView[] }) {
   return (
     <section className="card flex flex-col gap-4">
       <div>
-        <h2 className="text-lg uppercase tracking-wide">Objectifs</h2>
+        <h2 className="text-lg uppercase tracking-wide">{title}</h2>
         <p className="text-sm text-muted">Mesurés automatiquement sur tes {GOAL_WINDOW} dernières parties concernées.</p>
       </div>
       {goals.length ? (
@@ -48,13 +48,13 @@ export function GoalsPanel({ goals }: { goals: GoalView[] }) {
               </span>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold">
-                  {goalLabel(g)} {g.fromCoach ? <span className="ml-1 rounded-full bg-surface-3 px-2 py-0.5 text-[11px] text-fg-2">fixé par ton coach</span> : null}
+                  {goalLabel(g)} {g.badge ? <span className="ml-1 rounded-full bg-surface-3 px-2 py-0.5 text-[11px] text-fg-2">{g.badge}</span> : null}
                 </p>
                 <p className="text-xs text-muted">
                   {g.games ? `Actuel : ${formatMetric(g.metric, g.value)} sur ${g.games} partie${g.games > 1 ? "s" : ""} · ${g.met ? "atteint" : "pas encore"}` : "Pas encore de partie concernée"}
                 </p>
               </div>
-              {!g.fromCoach ? (
+              {g.canRemove ? (
                 <button
                   type="button"
                   disabled={pending}

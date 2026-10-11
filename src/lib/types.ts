@@ -7,6 +7,7 @@ export interface Profile {
   avatar_url: string | null;
   main_role: Role | null;
   is_admin: boolean;
+  is_coach?: boolean;
   share_aggregates: boolean;
 }
 

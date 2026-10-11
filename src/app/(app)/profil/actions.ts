@@ -67,16 +67,20 @@ const goalSchema = z.object({
   role: z.enum(ROLES).nullable(),
 });
 
-export async function addGoal(input: z.infer<typeof goalSchema>): Promise<{ ok: boolean; error?: string }> {
+/** Ajoute un objectif au joueur courant, ou à `playerId` quand c'est son coach qui le fixe (la RLS vérifie le lien). */
+export async function addGoal(input: z.infer<typeof goalSchema>, playerId?: string): Promise<{ ok: boolean; error?: string }> {
   const parsed = goalSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Objectif invalide : vérifie la valeur cible." };
+  if (playerId && !z.uuid().safeParse(playerId).success) return { ok: false, error: "Joueur inconnu." };
   const { supabase, uid: id } = await uid();
   if (!id) return { ok: false, error: "Session expirée, reconnecte-toi." };
-  const { count } = await supabase.from("goals").select("id", { count: "exact", head: true }).eq("user_id", id).eq("active", true);
-  if ((count ?? 0) >= 6) return { ok: false, error: "6 objectifs actifs maximum : retires-en un avant d'en ajouter." };
-  const { error } = await supabase.from("goals").insert({ ...parsed.data, user_id: id });
+  const target = playerId ?? id;
+  const { count } = await supabase.from("goals").select("id", { count: "exact", head: true }).eq("user_id", target).eq("active", true);
+  if ((count ?? 0) >= 8) return { ok: false, error: "8 objectifs actifs maximum : retires-en un avant d'en ajouter." };
+  const { error } = await supabase.from("goals").insert({ ...parsed.data, user_id: target });
   if (error) return { ok: false, error: "L'objectif n'a pas pu être enregistré." };
   revalidatePath("/profil");
+  if (playerId) revalidatePath(`/equipe/${playerId}`);
   return { ok: true };
 }
 
@@ -86,18 +90,22 @@ export async function removeGoal(goalId: string): Promise<{ ok: boolean; error?:
   const { error } = await supabase.from("goals").delete().eq("id", goalId);
   if (error) return { ok: false, error: "La suppression a échoué." };
   revalidatePath("/profil");
+  revalidatePath("/equipe", "layout");
   return { ok: true };
 }
 
 const SKILL_KEYS = ["aim", "survival", "impact", "pool", "consistency", "gamesense", "adaptability", "comms", "ults", "mental"] as const;
 
-export async function saveEvaluation(scores: Record<string, number>): Promise<{ ok: boolean; error?: string }> {
+/** Enregistre une évaluation : celle du joueur sur lui-même, ou celle de son coach quand `playerId` est fourni. */
+export async function saveEvaluation(scores: Record<string, number>, playerId?: string): Promise<{ ok: boolean; error?: string }> {
   const parsed = z.object(Object.fromEntries(SKILL_KEYS.map((k) => [k, z.number().int().min(1).max(10)]))).safeParse(scores);
   if (!parsed.success) return { ok: false, error: "Chaque axe doit être noté de 1 à 10." };
+  if (playerId && !z.uuid().safeParse(playerId).success) return { ok: false, error: "Joueur inconnu." };
   const { supabase, uid: id } = await uid();
   if (!id) return { ok: false, error: "Session expirée, reconnecte-toi." };
-  const { error } = await supabase.from("skill_evaluations").insert({ player_id: id, scores: parsed.data });
+  const { error } = await supabase.from("skill_evaluations").insert({ player_id: playerId ?? id, scores: parsed.data });
   if (error) return { ok: false, error: "L'évaluation n'a pas pu être enregistrée." };
   revalidatePath("/profil");
+  if (playerId) revalidatePath(`/equipe/${playerId}`);
   return { ok: true };
 }

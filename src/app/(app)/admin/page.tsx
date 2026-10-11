@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { getRefs, requireSession } from "@/lib/data";
 import { EmptyState, PageHeader } from "@/components/ui";
 import { RefEditor } from "./ref-editor";
+import { BulkPortraits } from "./bulk-portraits";
 
 export const metadata: Metadata = { title: "Admin" };
 
@@ -51,6 +52,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           Guides
         </a>
       </nav>
+      {tab === "heroes" ? <BulkPortraits heroes={refs.heroes} /> : null}
       <RefEditor key={tab} table={tab} rows={rows} gameModes={refs.gameModes.map((m) => ({ id: m.id, name: m.name }))} />
     </>
   );

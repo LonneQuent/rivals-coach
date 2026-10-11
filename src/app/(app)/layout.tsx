@@ -4,13 +4,13 @@ import { Sidebar } from "@/components/sidebar";
 import { requireSession } from "@/lib/data";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const { profile, user } = await requireSession();
+  const { profile, user, isCoach } = await requireSession();
   const collapsed = (await cookies()).get("sidebar")?.value === "collapsed";
   const pseudo = profile?.pseudo || user.email?.split("@")[0] || "Joueur";
 
   return (
     <div className="flex min-h-dvh">
-      <Sidebar initialCollapsed={collapsed} isAdmin={!!profile?.is_admin} pseudo={pseudo} avatarUrl={profile?.avatar_url ?? null} />
+      <Sidebar initialCollapsed={collapsed} isAdmin={!!profile?.is_admin} isCoach={isCoach} pseudo={pseudo} avatarUrl={profile?.avatar_url ?? null} />
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-line bg-bg/95 px-4 backdrop-blur md:hidden">
           <Link href="/" className="font-display text-lg font-bold uppercase tracking-wider">

@@ -15,10 +15,11 @@ import {
   PlusCircle,
   Settings,
   UserRound,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 
-type Item = { href: string; label: string; icon: LucideIcon; admin?: boolean; accent?: boolean };
+type Item = { href: string; label: string; icon: LucideIcon; admin?: boolean; coach?: boolean; accent?: boolean };
 
 const ITEMS: Item[] = [
   { href: "/", label: "Accueil", icon: House },
@@ -27,6 +28,7 @@ const ITEMS: Item[] = [
   { href: "/historique", label: "Historique", icon: History },
   { href: "/stats", label: "Stats", icon: ChartColumn },
   { href: "/questions", label: "Questions", icon: MessageCircleQuestion },
+  { href: "/equipe", label: "Équipe", icon: Users, coach: true },
   { href: "/admin", label: "Admin", icon: Settings, admin: true },
 ];
 
@@ -36,10 +38,10 @@ function isActive(path: string, href: string) {
   return href === "/" ? path === "/" || path.startsWith("/heros") : path.startsWith(href);
 }
 
-export function Sidebar({ initialCollapsed, isAdmin, pseudo, avatarUrl }: { initialCollapsed: boolean; isAdmin: boolean; pseudo: string; avatarUrl: string | null }) {
+export function Sidebar({ initialCollapsed, isAdmin, isCoach, pseudo, avatarUrl }: { initialCollapsed: boolean; isAdmin: boolean; isCoach: boolean; pseudo: string; avatarUrl: string | null }) {
   const path = usePathname();
   const [collapsed, setCollapsed] = useState(initialCollapsed);
-  const items = ITEMS.filter((i) => !i.admin || isAdmin);
+  const items = ITEMS.filter((i) => (!i.admin || isAdmin) && (!i.coach || isCoach));
 
   function toggle() {
     const next = !collapsed;

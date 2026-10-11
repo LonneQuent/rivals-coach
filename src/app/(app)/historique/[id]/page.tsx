@@ -6,6 +6,7 @@ import { requireSession } from "@/lib/data";
 import type { Role } from "@/lib/types";
 import { HeroMark, ResultPill, RoleBadge, buttonClass } from "@/components/ui";
 import { DeleteMatchButton } from "../delete-button";
+import { MatchComments, type CommentView } from "./comments";
 
 export const metadata: Metadata = { title: "Détail de la partie" };
 
@@ -59,6 +60,19 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
   if (!m) notFound();
 
   const mine = m.user_id === user.id;
+  const { data: commentsData } = await supabase
+    .from("match_comments")
+    .select("id, body, created_at, author_id, author:profiles!match_comments_author_id_fkey(pseudo)")
+    .eq("match_id", m.id)
+    .order("created_at");
+  const comments: CommentView[] = ((commentsData ?? []) as unknown as { id: string; body: string; created_at: string; author_id: string; author: { pseudo: string | null } | null }[]).map((c) => ({
+    id: c.id,
+    body: c.body,
+    created_at: c.created_at,
+    mine: c.author_id === user.id,
+    author: c.author_id === user.id ? "Toi" : c.author?.pseudo || "Joueur",
+    isCoach: c.author_id !== m.user_id,
+  }));
   const heroes = [...m.match_heroes].sort((a, b) => a.position - b.position);
   const total = (k: keyof HeroLine) => (heroes.some((h) => h[k] !== null) ? heroes.reduce((s, h) => s + Number(h[k] ?? 0), 0) : null);
   const kills = total("kills"), deaths = total("deaths"), assists = total("assists");
@@ -76,8 +90,8 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
 
   return (
     <>
-      <Link href="/historique" className="text-sm text-muted hover:text-fg">
-        ← Historique
+      <Link href={mine ? "/historique" : `/equipe/${m.user_id}`} className="text-sm text-muted hover:text-fg">
+        {mine ? "← Historique" : "← Fiche du joueur"}
       </Link>
 
       <section className="flex flex-wrap items-center gap-4">
@@ -197,6 +211,11 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
           ) : null}
         </section>
       </div>
+      <MatchComments
+        matchId={m.id}
+        comments={comments}
+        placeholder={mine ? "Une question pour ton coach sur cette partie ?" : "Ton retour sur cette partie : ce qui était bien, ce qu'il faut corriger…"}
+      />
     </>
   );
 }

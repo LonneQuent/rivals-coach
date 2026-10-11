@@ -8,12 +8,12 @@ import type { ErrorTag, GameMode, Hero, MapRef, Profile, Queue, Rank, Refs } fro
 export const requireSession = cache(async () => {
   const { supabase, user } = await getUser();
   if (!user) redirect("/login");
-  const { data } = await supabase
-    .from("profiles")
-    .select("id, pseudo, avatar_url, main_role, is_admin, share_aggregates")
-    .eq("id", user.id)
-    .single();
-  return { supabase, user, profile: (data as Profile | null) };
+  const base = "id, pseudo, avatar_url, main_role, is_admin, share_aggregates";
+  let { data, error } = await supabase.from("profiles").select(`${base}, is_coach`).eq("id", user.id).single();
+  // is_coach arrive avec la migration 0006 : en attendant, on relit sans
+  if (error) ({ data } = await supabase.from("profiles").select(base).eq("id", user.id).single());
+  const profile = data as Profile | null;
+  return { supabase, user, profile, isCoach: !!(profile?.is_admin || profile?.is_coach) };
 });
 
 /** Référentiels. `all` inclut les entrées désactivées (pour l'admin). */
