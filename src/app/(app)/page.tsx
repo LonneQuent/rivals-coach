@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Swords } from "lucide-react";
 import { getRefs, requireSession } from "@/lib/data";
 import { ROLES } from "@/lib/types";
 import { roleSlug } from "@/lib/guides";
@@ -57,7 +58,7 @@ export default async function HomePage() {
         <Rich text={tipOfTheDay()} />
       </MascotTip>
 
-      <section className="grid gap-3 sm:grid-cols-3" aria-label="Guides de rôle">
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="Guides de rôle et compos">
         {ROLES.map((role) => (
           <Link
             key={role}
@@ -72,6 +73,16 @@ export default async function HomePage() {
             <span aria-hidden className="text-muted">→</span>
           </Link>
         ))}
+        <Link href="/compos" className="card lift flex items-center gap-3 py-3">
+          <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-accent/15 text-accent" aria-hidden>
+            <Swords className="size-6" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="font-display text-lg font-bold uppercase tracking-wide">Compos d&apos;équipe</p>
+            <p className="text-xs text-muted">Jouer à six : qui fait quoi</p>
+          </div>
+          <span aria-hidden className="text-muted">→</span>
+        </Link>
       </section>
 
       <div className="grid gap-6 lg:grid-cols-3">

@@ -54,6 +54,9 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
         <a href="/admin/guides" className="whitespace-nowrap border-b-2 border-transparent px-3 py-2 font-display text-sm font-semibold uppercase tracking-wider text-muted hover:text-fg">
           Guides
         </a>
+        <a href="/admin/compos" className="whitespace-nowrap border-b-2 border-transparent px-3 py-2 font-display text-sm font-semibold uppercase tracking-wider text-muted hover:text-fg">
+          Compos
+        </a>
       </nav>
       {tab === "heroes" ? <BulkPortraits heroes={refs.heroes} /> : null}
       <RefEditor key={tab} table={tab} rows={rows} gameModes={refs.gameModes.map((m) => ({ id: m.id, name: m.name }))} />
