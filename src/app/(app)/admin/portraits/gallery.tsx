@@ -16,7 +16,7 @@ type FileView = { name: string; url: string; size: number; createdAt: string; w?
 
 const KIND_LABEL: Record<Kind, string> = {
   portrait: "Portrait probable",
-  icon: "Petite icône (compétence ?)",
+  icon: "Icône (utilisable dans les guides)",
   art: "Pas carré (skin, illustration ?)",
   unknown: "Analyse…",
 };
@@ -125,7 +125,7 @@ export function PortraitGallery({ heroes }: { heroes: Hero[] }) {
   if (!files) return <p className="text-sm text-muted">Chargement des images…</p>;
 
   const isAssigned = (f: FileView) => assigned.has(f.url);
-  const suspects = files.filter((f) => !isAssigned(f) && (f.kind === "icon" || f.kind === "art"));
+  const suspects = files.filter((f) => !isAssigned(f) && f.kind === "art");
   const counts = {
     all: files.length,
     assigned: files.filter(isAssigned).length,
@@ -142,7 +142,7 @@ export function PortraitGallery({ heroes }: { heroes: Hero[] }) {
       <div className="flex flex-wrap items-center gap-2">
         {(
           [
-            ["suspect", "À écarter (icônes, skins)"],
+            ["suspect", "À écarter (skins, illustrations)"],
             ["unassigned", "Non assignées"],
             ["assigned", "Assignées"],
             ["all", "Toutes"],
@@ -196,7 +196,7 @@ export function PortraitGallery({ heroes }: { heroes: Hero[] }) {
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={f.url} alt="" loading="lazy" className="max-h-full max-w-full object-contain" />
                 </div>
-                <p className={clsx("text-xs font-semibold", f.kind === "portrait" ? "text-good" : f.kind === "unknown" ? "text-muted" : "text-bad")}>{KIND_LABEL[f.kind]}</p>
+                <p className={clsx("text-xs font-semibold", f.kind === "portrait" ? "text-good" : f.kind === "icon" ? "text-accent" : f.kind === "unknown" ? "text-muted" : "text-bad")}>{KIND_LABEL[f.kind]}</p>
                 <p className="tabular text-[11px] text-muted">
                   {f.w ? `${f.w}×${f.h} px` : "…"} · {Math.round(f.size / 1024)} Ko
                 </p>

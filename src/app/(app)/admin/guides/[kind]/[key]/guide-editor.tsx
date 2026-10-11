@@ -3,16 +3,32 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Plus, Trash2 } from "lucide-react";
-import { SECTION_KINDS, type GuideContent, type GuideStatus, type SectionKind } from "@/lib/guides";
+import { DIAGRAMS, SECTION_KINDS, formatComboSteps, parseComboSteps, type DiagramKind, type GuideContent, type GuideStatus, type SectionKind } from "@/lib/guides";
+import { DIAGRAM_LABEL } from "@/components/diagrams";
+import { ImageField } from "./image-field";
 import type { Role } from "@/lib/types";
 import { buttonClass } from "@/components/ui";
 import { saveGuide } from "../../actions";
 
 type Target = { kind: "hero"; hero_id: number } | { kind: "role"; role: Role };
-type SectionDraft = { key: number; title: string; lead: string; ability: string; keycap: string; kind: SectionKind; items: string };
+type SectionDraft = {
+  key: number;
+  title: string;
+  lead: string;
+  ability: string;
+  keycap: string;
+  kind: SectionKind;
+  items: string;
+  icon: string;
+  imageUrl: string;
+  imageCaption: string;
+  diagram: DiagramKind | "";
+};
+type ComboDraft = { key: number; title: string; steps: string; note: string };
 const KIND_LABEL: Record<SectionKind, string> = { default: "Liste classique", tips: "Astuces mises en avant", mistakes: "Bloc « À éviter »" };
 
-let k = 0;
+// Clés des blocs : stables entre le rendu serveur et le client (index au départ, compteur ensuite)
+let k = 10_000;
 const lines = (s: string) => s.split("\n").map((l) => l.trim()).filter(Boolean);
 const norm = (s: string) => s.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
 
@@ -41,13 +57,27 @@ export function GuideEditor({
   const [tldr, setTldr] = useState(initial.tldr.join("\n"));
   const [difficulty, setDifficulty] = useState(initial.difficulty);
   const [tags, setTags] = useState(initial.tags.join(", "));
-  const blankSection = (): SectionDraft => ({ key: ++k, title: "", lead: "", ability: "", keycap: "", kind: "default", items: "" });
+  const blankSection = (key = ++k): SectionDraft => ({ key, title: "", lead: "", ability: "", keycap: "", kind: "default", items: "", icon: "", imageUrl: "", imageCaption: "", diagram: "" });
   const [sections, setSections] = useState<SectionDraft[]>(() =>
     initial.sections.length
-      ? initial.sections.map((s) => ({ key: ++k, title: s.title, lead: s.lead, ability: s.ability, keycap: s.key, kind: s.kind, items: s.items.join("\n") }))
-      : [blankSection()],
+      ? initial.sections.map((s, i) => ({
+          key: i + 1,
+          title: s.title,
+          lead: s.lead,
+          ability: s.ability,
+          keycap: s.key,
+          kind: s.kind,
+          items: s.items.join("\n"),
+          icon: s.icon,
+          imageUrl: s.image?.url ?? "",
+          imageCaption: s.image?.caption ?? "",
+          diagram: s.diagram,
+        }))
+      : [blankSection(1)],
   );
   const patchSection = (key: number, p: Partial<SectionDraft>) => setSections((xs) => xs.map((x) => (x.key === key ? { ...x, ...p } : x)));
+  const [combos, setCombos] = useState<ComboDraft[]>(() => initial.combos.map((c, i) => ({ key: 1000 + i, title: c.title, steps: formatComboSteps(c.steps), note: c.note })));
+  const patchCombo = (key: number, p: Partial<ComboDraft>) => setCombos((xs) => xs.map((x) => (x.key === key ? { ...x, ...p } : x)));
   const [counters, setCounters] = useState(initial.counters.map((c) => `${nameOf(c.hero)} | ${c.note}`).join("\n"));
   const [synergies, setSynergies] = useState(initial.synergies.map((c) => `${nameOf(c.hero)} | ${c.note}`).join("\n"));
   const [sources, setSources] = useState(initial.sources.map((s) => [s.title, s.author, s.url].filter(Boolean).join(" | ")).join("\n"));
@@ -75,8 +105,22 @@ export function GuideEditor({
       difficulty,
       tags: tags.split(",").map((t) => t.trim()).filter(Boolean).slice(0, 5),
       sections: sections
-        .filter((x) => x.title.trim() && lines(x.items).length)
-        .map((x) => ({ title: x.title.trim(), lead: x.lead.trim(), ability: x.ability.trim(), key: x.keycap.trim(), kind: x.kind, items: lines(x.items) })),
+        .filter((x) => x.title.trim() && (lines(x.items).length || x.imageUrl || x.diagram))
+        .map((x) => ({
+          title: x.title.trim(),
+          lead: x.lead.trim(),
+          ability: x.ability.trim(),
+          key: x.keycap.trim(),
+          kind: x.kind,
+          items: lines(x.items),
+          icon: x.icon,
+          diagram: x.diagram,
+          ...(x.imageUrl ? { image: { url: x.imageUrl, caption: x.imageCaption.trim() } } : {}),
+        })),
+      combos: combos
+        .map((c) => ({ title: c.title.trim(), steps: parseComboSteps(c.steps), note: c.note.trim() }))
+        .filter((c) => c.title && c.steps.length >= 2)
+        .slice(0, 6),
       counters: c.out,
       synergies: s.out,
       sources: lines(sources).map((l) => {
@@ -171,11 +215,78 @@ export function GuideEditor({
             Conseils (un par ligne, **gras** pour les mots-clés)
             <textarea id={`si-${s.key}`} className="field min-h-32" value={s.items} onChange={(e) => patchSection(s.key, { items: e.target.value })} />
           </label>
+          {s.kind !== "mistakes" ? (
+            <details className="rounded-lg border border-line px-3 py-2" open={!!(s.icon || s.imageUrl || s.diagram)}>
+              <summary className="cursor-pointer text-sm font-semibold text-fg-2">Illustrations (icône, schéma, capture)</summary>
+              <div className="mt-3 flex flex-col gap-4 pb-1">
+                <ImageField folder="icons" label="Icône de la capacité" value={s.icon} onChange={(url) => patchSection(s.key, { icon: url })} />
+                <label className="label" htmlFor={`sd-${s.key}`}>
+                  Schéma tactique dessiné par l&apos;app
+                  <select id={`sd-${s.key}`} className="field" value={s.diagram} onChange={(e) => patchSection(s.key, { diagram: e.target.value as DiagramKind | "" })}>
+                    <option value="">Aucun</option>
+                    {DIAGRAMS.map((d) => (
+                      <option key={d} value={d}>
+                        {DIAGRAM_LABEL[d]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <ImageField folder="captures" label="Capture d'écran ou schéma perso" value={s.imageUrl} onChange={(url) => patchSection(s.key, { imageUrl: url })} />
+                {s.imageUrl ? (
+                  <label className="label" htmlFor={`sc-${s.key}`}>
+                    Légende de l&apos;image
+                    <input id={`sc-${s.key}`} className="field" value={s.imageCaption} maxLength={160} onChange={(e) => patchSection(s.key, { imageCaption: e.target.value })} placeholder="ex. Le spot en hauteur à gauche du point A" />
+                  </label>
+                ) : null}
+              </div>
+            </details>
+          ) : null}
         </section>
       ))}
       <button type="button" className={buttonClass("default", "self-start")} onClick={() => setSections((xs) => [...xs, blankSection()])}>
         <Plus className="size-4" /> Ajouter une section
       </button>
+
+      <section className="card flex flex-col gap-4">
+        <div>
+          <h2 className="text-lg font-bold">Combos</h2>
+          <p className="text-sm text-muted">
+            Étapes séparées par <code>&gt;</code>. Chaque étape : <code>Touche:effet</code>, <code>Touche</code> seule, ou <code>[action sans touche]</code>. Ex. <code>Clic G:tir &gt; E:coup de pied &gt; [saut] &gt; Clic G</code>
+          </p>
+        </div>
+        {combos.map((c) => {
+          const preview = parseComboSteps(c.steps);
+          return (
+            <div key={c.key} className="flex flex-col gap-2 rounded-lg border border-line p-3">
+              <div className="flex items-end gap-3">
+                <label className="label flex-1" htmlFor={`ct-${c.key}`}>
+                  Nom du combo
+                  <input id={`ct-${c.key}`} className="field" value={c.title} maxLength={60} onChange={(e) => patchCombo(c.key, { title: e.target.value })} placeholder="ex. Mise à mort rapide" />
+                </label>
+                <button type="button" className={buttonClass("danger")} onClick={() => setCombos((xs) => xs.filter((x) => x.key !== c.key))} aria-label="Supprimer le combo">
+                  <Trash2 className="size-4" />
+                </button>
+              </div>
+              <label className="label" htmlFor={`cs-${c.key}`}>
+                Étapes
+                <input id={`cs-${c.key}`} className="field font-mono text-sm" value={c.steps} onChange={(e) => patchCombo(c.key, { steps: e.target.value })} />
+              </label>
+              <p className="text-xs text-muted">
+                {preview.length < 2 ? "Il faut au moins 2 étapes." : `${preview.length} étapes : ${preview.map((p) => p.key || `[${p.label}]`).join(" → ")}`}
+              </p>
+              <label className="label" htmlFor={`cn-${c.key}`}>
+                Note (facultatif)
+                <input id={`cn-${c.key}`} className="field" value={c.note} maxLength={200} onChange={(e) => patchCombo(c.key, { note: e.target.value })} />
+              </label>
+            </div>
+          );
+        })}
+        {combos.length < 6 ? (
+          <button type="button" className={buttonClass("default", "self-start")} onClick={() => setCombos((xs) => [...xs, { key: ++k, title: "", steps: "", note: "" }])}>
+            <Plus className="size-4" /> Ajouter un combo
+          </button>
+        ) : null}
+      </section>
 
       <section className="card grid gap-4 md:grid-cols-2">
         <label className="label" htmlFor="counters">

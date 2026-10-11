@@ -1,10 +1,13 @@
 import Link from "next/link";
-import { AlertTriangle, Check, ExternalLink, Lightbulb, X } from "lucide-react";
-import { sectionAnchor, type GuideContent, type GuideSection } from "@/lib/guides";
+import { Fragment } from "react";
+import { AlertTriangle, Check, ChevronRight, ExternalLink, Lightbulb, X } from "lucide-react";
+import { sectionAnchor, type GuideCombo, type GuideContent, type GuideSection } from "@/lib/guides";
 import type { Hero, Role } from "@/lib/types";
 import { HeroMark } from "@/components/ui";
 import { SectionIcon } from "@/components/illustrations";
 import { GuideToc, ReadingProgress } from "@/components/guide-toc";
+import { TacticDiagram } from "@/components/diagrams";
+import { Mascot } from "@/components/mascot";
 
 const ROLE_VAR: Record<Role, string> = { Vanguard: "var(--color-van)", Duelist: "var(--color-due)", Strategist: "var(--color-str)" };
 const DIFFICULTY = ["", "Accessible", "Intermédiaire", "Exigeant"];
@@ -27,11 +30,14 @@ export function Rich({ text }: { text: string }) {
   );
 }
 
-function Keycap({ label }: { label: string }) {
+function Keycap({ label, big = false }: { label: string; big?: boolean }) {
   return (
     <span className="inline-flex items-center gap-1" title="Touche par défaut">
       {label.split("·").map((k) => (
-        <kbd key={k} className="rounded-md border border-line border-b-[3px] bg-surface-3 px-1.5 py-0.5 font-sans text-[11px] font-bold tracking-normal text-fg normal-case">
+        <kbd
+          key={k}
+          className={`rounded-md border border-line border-b-[3px] bg-surface-3 font-sans font-bold tracking-normal text-fg normal-case ${big ? "min-w-9 px-2.5 py-1.5 text-center text-sm" : "px-1.5 py-0.5 text-[11px]"}`}
+        >
           {k.trim()}
         </kbd>
       ))}
@@ -47,8 +53,15 @@ export function GuideView({ content, heroes, role }: { content: GuideContent; he
   const accent = ROLE_VAR[role];
   const bySlug = new Map(heroes.map((h) => [h.slug, h]));
   const sections = content.sections.map((s, i) => ({ ...s, id: sectionAnchor(s.title, i) }));
+  // Les combos en touches suivent la section « Combos » rédigée s'il y en a une,
+  // sinon ils se lisent juste avant le bloc « À éviter » (ou à la fin)
+  const textCombosAt = sections.findIndex((s) => /^combos?$/i.test(s.title.trim()));
+  const mistakesAt = sections.findIndex((s) => s.kind === "mistakes");
+  const combosAt = !content.combos.length ? -1 : textCombosAt !== -1 ? textCombosAt + 1 : mistakesAt === -1 ? sections.length : mistakesAt;
+  const combosToc = { id: "combos", label: "Combos en touches" };
   const toc = [
-    ...sections.map((s) => ({ id: s.id, label: s.kind === "mistakes" ? "À éviter" : s.title })),
+    ...sections.flatMap((s, i) => [...(i === combosAt ? [combosToc] : []), { id: s.id, label: s.kind === "mistakes" ? "À éviter" : s.title }]),
+    ...(combosAt === sections.length ? [combosToc] : []),
     ...(content.counters.length || content.synergies.length ? [{ id: "matchups", label: "Counters et alliés" }] : []),
   ];
 
@@ -125,8 +138,12 @@ export function GuideView({ content, heroes, role }: { content: GuideContent; he
         <GuideToc items={toc} accent={accent} />
         <article className="flex min-w-0 max-w-[72ch] flex-col">
           {sections.map((s, i) => (
-            <Section key={s.id} s={s} id={s.id} role={role} accent={accent} first={i === 0} />
+            <Fragment key={s.id}>
+              {i === combosAt ? <Combos combos={content.combos} accent={accent} /> : null}
+              <Section s={s} id={s.id} role={role} accent={accent} first={i === 0} />
+            </Fragment>
           ))}
+          {combosAt === sections.length ? <Combos combos={content.combos} accent={accent} /> : null}
 
           {content.counters.length || content.synergies.length ? (
             <section id="matchups" className="scroll-mt-24 border-t border-line pt-8">
@@ -168,7 +185,8 @@ function Section({ s, id, role, accent, first }: { s: GuideSection; id: string; 
   if (s.kind === "mistakes") {
     return (
       <section id={id} className="scroll-mt-24 border-t border-line py-8">
-        <div className="rounded-xl border border-bad/40 bg-bad-bg/60 p-5">
+        <div className="relative rounded-xl border border-bad/40 bg-bad-bg/60 p-5">
+          <Mascot pose="warn" className="absolute -top-9 right-3 size-16 sm:size-20" />
           <h2 className="flex items-center gap-3 text-2xl uppercase tracking-wide">
             <span className="grid size-9 place-items-center rounded-lg bg-bad/20 text-bad" aria-hidden>
               <X className="size-5" />
@@ -194,7 +212,14 @@ function Section({ s, id, role, accent, first }: { s: GuideSection; id: string; 
   return (
     <section id={id} className={`scroll-mt-24 py-8 ${first ? "pt-0" : "border-t border-line"}`}>
       <header className="flex items-start gap-3">
-        <SectionIcon title={s.title} role={role} className="mt-1" />
+        {s.icon ? (
+          <span className="mt-1 grid size-10 shrink-0 place-items-center overflow-hidden rounded-lg border border-line bg-surface-2" style={{ boxShadow: `inset 0 -2px 0 ${accent}` }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={s.icon} alt="" loading="lazy" className="size-8 object-contain" />
+          </span>
+        ) : (
+          <SectionIcon title={s.title} role={role} className="mt-1" />
+        )}
         <div className="min-w-0">
           <h2 className="text-2xl uppercase tracking-wide">{s.title}</h2>
           {s.ability || s.key ? (
@@ -210,13 +235,63 @@ function Section({ s, id, role, accent, first }: { s: GuideSection; id: string; 
           <Rich text={s.lead} />
         </p>
       ) : null}
-      <ul className={`mt-5 flex flex-col gap-3.5 ${s.kind === "tips" ? "rounded-xl bg-surface p-5" : ""}`}>
-        {s.items.map((it, i) => (
-          <li key={i} className="flex gap-3 text-[15px] leading-relaxed text-fg-2">
-            <Marker className="mt-1 size-4 shrink-0" style={{ color: accent }} aria-hidden />
-            <span>
-              <Rich text={it} />
-            </span>
+      {s.diagram ? <TacticDiagram kind={s.diagram} className="mt-5" /> : null}
+      {s.image ? (
+        <figure className="mt-5 overflow-hidden rounded-xl border border-line bg-surface">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={s.image.url} alt={s.image.caption || s.title} loading="lazy" className="block max-h-[420px] w-full object-contain" />
+          {s.image.caption ? <figcaption className="border-t border-line px-4 py-2.5 text-sm text-fg-2">{s.image.caption}</figcaption> : null}
+        </figure>
+      ) : null}
+      {s.items.length ? (
+        <div className={s.kind === "tips" ? "mt-5 flex items-end gap-3" : ""}>
+          {s.kind === "tips" ? <Mascot pose="think" className="hidden size-20 sm:block" /> : null}
+          <ul className={`flex min-w-0 flex-1 flex-col gap-3.5 ${s.kind === "tips" ? "relative rounded-xl bg-surface p-5" : "mt-5"}`}>
+            {s.items.map((it, i) => (
+              <li key={i} className="flex gap-3 text-[15px] leading-relaxed text-fg-2">
+                <Marker className="mt-1 size-4 shrink-0" style={{ color: accent }} aria-hidden />
+                <span>
+                  <Rich text={it} />
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+/** Enchaînements de touches : chaque étape est une touche (et son effet), reliées par des flèches. */
+function Combos({ combos, accent }: { combos: GuideCombo[]; accent: string }) {
+  return (
+    <section id="combos" className="scroll-mt-24 border-t border-line py-8">
+      <h2 className="text-2xl uppercase tracking-wide">Combos en touches</h2>
+      <p className="mt-1 text-sm text-muted">Touches par défaut sur PC. Entraîne-les en partie d&apos;entraînement jusqu&apos;à ce qu&apos;ils sortent tout seuls.</p>
+      <ul className="mt-5 flex flex-col gap-3">
+        {combos.map((c, i) => (
+          <li key={i} className="rounded-xl border border-line bg-surface p-4" style={{ borderLeft: `3px solid ${accent}` }}>
+            <p className="font-display text-lg font-bold">{c.title}</p>
+            <ol className="mt-3 flex flex-wrap items-start gap-x-1.5 gap-y-3">
+              {c.steps.map((st, j) => (
+                <li key={j} className="flex items-start gap-1.5">
+                  {j > 0 ? <ChevronRight className="mt-2 size-4 shrink-0 text-muted" aria-hidden /> : null}
+                  <span className="flex flex-col items-center gap-1">
+                    {st.key ? (
+                      <Keycap label={st.key} big />
+                    ) : (
+                      <span className="rounded-md border border-dashed border-line px-2.5 py-1.5 text-sm font-semibold text-fg-2">{st.label}</span>
+                    )}
+                    {st.key && st.label ? <span className="max-w-24 text-center text-[11px] leading-tight text-muted">{st.label}</span> : null}
+                  </span>
+                </li>
+              ))}
+            </ol>
+            {c.note ? (
+              <p className="mt-3 text-sm text-fg-2">
+                <Rich text={c.note} />
+              </p>
+            ) : null}
           </li>
         ))}
       </ul>

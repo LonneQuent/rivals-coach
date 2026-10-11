@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { Sidebar } from "@/components/sidebar";
+import { QuickEntryButton } from "@/components/quick-entry/quick-entry-button";
 import { requireSession } from "@/lib/data";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -25,6 +26,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           ) : null}
           {children}
         </main>
+        <QuickEntryButton />
       </div>
     </div>
   );

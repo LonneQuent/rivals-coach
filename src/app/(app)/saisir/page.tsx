@@ -1,70 +1,58 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { getRefs, requireSession } from "@/lib/data";
+import { getEntryContext, MATCH_INPUT_COLS, toMatchInput } from "@/lib/matches";
 import type { MatchInput } from "@/lib/types";
 import { EmptyState, PageHeader } from "@/components/ui";
+import { EntryWizard } from "@/components/quick-entry/wizard";
 import { MatchForm } from "./match-form";
 
 export const metadata: Metadata = { title: "Saisir une partie" };
 
-type Row = Omit<MatchInput, "tag_ids" | "heroes" | "award" | "note"> & {
-  id: string;
-  award: "MVP" | "SVP" | null;
-  note: string | null;
-  match_heroes: (MatchInput["heroes"][number] & { position: number })[];
-  match_tags: { tag_id: number }[];
-};
-
-export default async function SaisirPage({ searchParams }: { searchParams: Promise<{ edit?: string }> }) {
-  const { edit } = await searchParams;
+export default async function SaisirPage({ searchParams }: { searchParams: Promise<{ edit?: string; mode?: string }> }) {
+  const { edit, mode } = await searchParams;
   const { supabase, user } = await requireSession();
-  const refs = await getRefs();
+  const [refs, ctx] = await Promise.all([getRefs(), getEntryContext(supabase, user.id)]);
 
   if (!refs.heroes.length) {
     return <EmptyState title="Le référentiel est vide" body="Exécute la migration 0002_seed.sql dans Supabase, ou ajoute des héros depuis l'onglet Admin." />;
   }
 
-  const cols =
-    "id, played_at, queue_id, game_mode_id, map_id, rank_id, result, duration_min, feeling, award, note, match_heroes(position, hero_id, role, play_minutes, kills, deaths, assists, final_hits, damage, damage_blocked, healing, accuracy), match_tags(tag_id)";
-
   let editing: MatchInput | null = null;
   if (edit) {
-    const { data } = await supabase.from("matches").select(cols).eq("id", edit).eq("user_id", user.id).maybeSingle();
-    if (data) editing = toInput(data as unknown as Row);
+    const { data } = await supabase.from("matches").select(MATCH_INPUT_COLS).eq("id", edit).eq("user_id", user.id).maybeSingle();
+    if (data) editing = toMatchInput(data);
   }
-  const { data: lastData } = await supabase.from("matches").select(cols).eq("user_id", user.id).order("played_at", { ascending: false }).limit(1).maybeSingle();
-  const last = lastData ? toInput(lastData as unknown as Row) : null;
+
+  // Modification d'une partie, ou formulaire complet demandé : tout sur un écran
+  if (editing || mode === "complet") {
+    return (
+      <>
+        <PageHeader
+          title={editing ? "Modifier la partie" : "Nouvelle partie"}
+          subtitle={editing ? "Corrige les valeurs puis enregistre." : "Formulaire complet. Seuls le héros et le résultat sont obligatoires."}
+          action={
+            editing ? null : (
+              <Link href="/saisir" className="text-sm font-semibold text-accent hover:underline">
+                Revenir à la saisie rapide
+              </Link>
+            )
+          }
+        />
+        <MatchForm key={editing?.id ?? "new"} refs={refs} editing={editing} last={ctx.last} />
+      </>
+    );
+  }
 
   return (
-    <>
-      <PageHeader
-        title={editing ? "Modifier la partie" : "Nouvelle partie"}
-        subtitle={editing ? "Corrige les valeurs puis enregistre." : "Les champs reprennent ta dernière partie. Seuls le héros et le résultat sont obligatoires."}
-      />
-      <MatchForm key={editing?.id ?? "new"} refs={refs} editing={editing} last={last} />
-    </>
+    <div className="mx-auto flex w-full max-w-xl flex-col gap-4">
+      <EntryWizard data={{ refs, ...ctx }} />
+      <p className="text-center text-xs text-muted">
+        Astuce : appuie sur <kbd className="rounded border border-line px-1">N</kbd> depuis n&apos;importe quelle page pour saisir une partie.{" "}
+        <Link href="/saisir?mode=complet" className="font-semibold text-accent hover:underline">
+          Formulaire complet
+        </Link>
+      </p>
+    </div>
   );
-}
-
-function toInput(r: Row): MatchInput {
-  return {
-    id: r.id,
-    played_at: r.played_at,
-    queue_id: r.queue_id,
-    game_mode_id: r.game_mode_id,
-    map_id: r.map_id,
-    rank_id: r.rank_id,
-    result: r.result,
-    duration_min: r.duration_min === null ? null : Number(r.duration_min),
-    feeling: r.feeling,
-    award: r.award ?? "",
-    note: r.note ?? "",
-    tag_ids: r.match_tags.map((t) => t.tag_id),
-    heroes: [...r.match_heroes]
-      .sort((a, b) => a.position - b.position)
-      .map(({ position: _p, ...h }) => ({
-        ...h,
-        play_minutes: h.play_minutes === null ? null : Number(h.play_minutes),
-        accuracy: h.accuracy === null ? null : Number(h.accuracy),
-      })),
-  };
 }
