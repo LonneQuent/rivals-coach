@@ -1,6 +1,7 @@
 import clsx from "clsx";
 import Link from "next/link";
 import type { Role } from "@/lib/types";
+import { Mascot } from "@/components/mascot";
 
 export const ROLE_STYLES: Record<Role, { dot: string; text: string; ring: string; bg: string }> = {
   Vanguard: { dot: "bg-van", text: "text-van", ring: "ring-van/60", bg: "bg-van/15" },
@@ -81,6 +82,7 @@ export function PageHeader({ title, subtitle, action }: { title: string; subtitl
 export function EmptyState({ title, body, href, cta }: { title: string; body: string; href?: string; cta?: string }) {
   return (
     <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-line px-6 py-10 text-center">
+      <Mascot className="mb-1 size-20" bob />
       <p className="font-display text-lg font-bold">{title}</p>
       <p className="max-w-md text-sm text-fg-2">{body}</p>
       {href && cta ? (

@@ -97,6 +97,21 @@ input[type="range"] {
   .lift:active {
     @apply translate-y-0;
   }
+  /* La mascotte se balance doucement */
+  .mascot-bob {
+    animation: mascot-bob 3.2s ease-in-out infinite;
+    transform-origin: 50% 95%;
+  }
+}
+
+@keyframes mascot-bob {
+  0%,
+  100% {
+    transform: rotate(-2deg) translateY(0);
+  }
+  50% {
+    transform: rotate(2deg) translateY(-2px);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

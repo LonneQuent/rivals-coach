@@ -4,6 +4,9 @@ import { ROLES } from "@/lib/types";
 import { roleSlug } from "@/lib/guides";
 import { HeroMark, RoleDot, buttonClass } from "@/components/ui";
 import { RoleEmblem } from "@/components/illustrations";
+import { MascotTip } from "@/components/mascot";
+import { Rich } from "@/components/guide-view";
+import { tipOfTheDay } from "@/lib/tips";
 
 export default async function HomePage() {
   const { supabase, user, profile } = await requireSession();
@@ -49,6 +52,10 @@ export default async function HomePage() {
           </Link>
         </div>
       </section>
+
+      <MascotTip title="Le conseil du Prof" className="max-w-2xl">
+        <Rich text={tipOfTheDay()} />
+      </MascotTip>
 
       <section className="grid gap-3 sm:grid-cols-3" aria-label="Guides de rôle">
         {ROLES.map((role) => (

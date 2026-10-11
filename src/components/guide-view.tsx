@@ -10,7 +10,7 @@ const ROLE_VAR: Record<Role, string> = { Vanguard: "var(--color-van)", Duelist: 
 const DIFFICULTY = ["", "Accessible", "Intermédiaire", "Exigeant"];
 
 /** Texte avec mots-clés en gras : « **pression** » → <strong>. */
-function Rich({ text }: { text: string }) {
+export function Rich({ text }: { text: string }) {
   const parts = text.split(/\*\*(.+?)\*\*/g);
   return (
     <>
