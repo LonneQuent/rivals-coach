@@ -3,13 +3,14 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Plus, Trash2 } from "lucide-react";
-import type { GuideContent, GuideStatus } from "@/lib/guides";
+import { SECTION_KINDS, type GuideContent, type GuideStatus, type SectionKind } from "@/lib/guides";
 import type { Role } from "@/lib/types";
 import { buttonClass } from "@/components/ui";
 import { saveGuide } from "../../actions";
 
 type Target = { kind: "hero"; hero_id: number } | { kind: "role"; role: Role };
-type SectionDraft = { key: number; title: string; items: string };
+type SectionDraft = { key: number; title: string; lead: string; ability: string; keycap: string; kind: SectionKind; items: string };
+const KIND_LABEL: Record<SectionKind, string> = { default: "Liste classique", tips: "Astuces mises en avant", mistakes: "Bloc « À éviter »" };
 
 let k = 0;
 const lines = (s: string) => s.split("\n").map((l) => l.trim()).filter(Boolean);
@@ -37,9 +38,16 @@ export function GuideEditor({
   const [summary, setSummary] = useState(initial.summary);
   const [patchNote, setPatchNote] = useState(initial.patch_note ?? "");
   const [status, setStatus] = useState<GuideStatus>(initialStatus);
+  const [tldr, setTldr] = useState(initial.tldr.join("\n"));
+  const [difficulty, setDifficulty] = useState(initial.difficulty);
+  const [tags, setTags] = useState(initial.tags.join(", "));
+  const blankSection = (): SectionDraft => ({ key: ++k, title: "", lead: "", ability: "", keycap: "", kind: "default", items: "" });
   const [sections, setSections] = useState<SectionDraft[]>(() =>
-    initial.sections.length ? initial.sections.map((s) => ({ key: ++k, title: s.title, items: s.items.join("\n") })) : [{ key: ++k, title: "", items: "" }],
+    initial.sections.length
+      ? initial.sections.map((s) => ({ key: ++k, title: s.title, lead: s.lead, ability: s.ability, keycap: s.key, kind: s.kind, items: s.items.join("\n") }))
+      : [blankSection()],
   );
+  const patchSection = (key: number, p: Partial<SectionDraft>) => setSections((xs) => xs.map((x) => (x.key === key ? { ...x, ...p } : x)));
   const [counters, setCounters] = useState(initial.counters.map((c) => `${nameOf(c.hero)} | ${c.note}`).join("\n"));
   const [synergies, setSynergies] = useState(initial.synergies.map((c) => `${nameOf(c.hero)} | ${c.note}`).join("\n"));
   const [sources, setSources] = useState(initial.sources.map((s) => [s.title, s.author, s.url].filter(Boolean).join(" | ")).join("\n"));
@@ -63,7 +71,12 @@ export function GuideEditor({
     const content: GuideContent = {
       summary: summary.trim(),
       patch_note: patchNote.trim(),
-      sections: sections.filter((x) => x.title.trim() && lines(x.items).length).map((x) => ({ title: x.title.trim(), items: lines(x.items) })),
+      tldr: lines(tldr).slice(0, 4),
+      difficulty,
+      tags: tags.split(",").map((t) => t.trim()).filter(Boolean).slice(0, 5),
+      sections: sections
+        .filter((x) => x.title.trim() && lines(x.items).length)
+        .map((x) => ({ title: x.title.trim(), lead: x.lead.trim(), ability: x.ability.trim(), key: x.keycap.trim(), kind: x.kind, items: lines(x.items) })),
       counters: c.out,
       synergies: s.out,
       sources: lines(sources).map((l) => {
@@ -94,6 +107,25 @@ export function GuideEditor({
           Avertissement de saison (facultatif)
           <input id="patch" className="field" value={patchNote} onChange={(e) => setPatchNote(e.target.value)} maxLength={500} placeholder="ex. Conseils de la saison 2, à vérifier en jeu" />
         </label>
+        <label className="label" htmlFor="tldr">
+          En bref : les 3 choses à retenir (une par ligne, **gras** possible)
+          <textarea id="tldr" className="field min-h-24" value={tldr} onChange={(e) => setTldr(e.target.value)} placeholder="Joue **en flanc** : ta valeur, c'est la pression sur les supports." />
+        </label>
+        <div className="grid gap-4 sm:grid-cols-[200px_1fr]">
+          <label className="label" htmlFor="difficulty">
+            Difficulté
+            <select id="difficulty" className="field" value={difficulty} onChange={(e) => setDifficulty(Number(e.target.value))}>
+              <option value={0}>Non renseignée</option>
+              <option value={1}>Accessible</option>
+              <option value={2}>Intermédiaire</option>
+              <option value={3}>Exigeant</option>
+            </select>
+          </label>
+          <label className="label" htmlFor="tags">
+            Style de jeu (séparé par des virgules, 5 max)
+            <input id="tags" className="field" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="Flanc, Pression backline, Très mobile" />
+          </label>
+        </div>
       </section>
 
       {sections.map((s, i) => (
@@ -101,19 +133,47 @@ export function GuideEditor({
           <div className="flex items-end gap-3">
             <label className="label flex-1" htmlFor={`st-${s.key}`}>
               Titre de la section {i + 1}
-              <input id={`st-${s.key}`} className="field" value={s.title} maxLength={80} onChange={(e) => setSections((xs) => xs.map((x) => (x.key === s.key ? { ...x, title: e.target.value } : x)))} />
+              <input id={`st-${s.key}`} className="field" value={s.title} maxLength={80} onChange={(e) => patchSection(s.key, { title: e.target.value })} />
+            </label>
+            <label className="label w-48" htmlFor={`sk-${s.key}`}>
+              Présentation
+              <select id={`sk-${s.key}`} className="field" value={s.kind} onChange={(e) => patchSection(s.key, { kind: e.target.value as SectionKind })}>
+                {SECTION_KINDS.map((kd) => (
+                  <option key={kd} value={kd}>
+                    {KIND_LABEL[kd]}
+                  </option>
+                ))}
+              </select>
             </label>
             <button type="button" className={buttonClass("danger")} onClick={() => setSections((xs) => xs.filter((x) => x.key !== s.key))} aria-label={`Supprimer la section ${i + 1}`}>
               <Trash2 className="size-4" />
             </button>
           </div>
+          {s.kind !== "mistakes" ? (
+            <div className="grid gap-3 sm:grid-cols-[1fr_160px]">
+              <label className="label" htmlFor={`sa-${s.key}`}>
+                Capacité (facultatif)
+                <input id={`sa-${s.key}`} className="field" value={s.ability} maxLength={60} onChange={(e) => patchSection(s.key, { ability: e.target.value })} placeholder="ex. Joyful Splash" />
+              </label>
+              <label className="label" htmlFor={`sy-${s.key}`}>
+                Touche (facultatif)
+                <input id={`sy-${s.key}`} className="field" value={s.keycap} maxLength={20} onChange={(e) => patchSection(s.key, { keycap: e.target.value })} placeholder="ex. Clic G · Maj" />
+              </label>
+            </div>
+          ) : null}
+          {s.kind !== "mistakes" ? (
+            <label className="label" htmlFor={`sl-${s.key}`}>
+              Phrase d&apos;intro (facultatif)
+              <textarea id={`sl-${s.key}`} className="field min-h-16" value={s.lead} maxLength={500} onChange={(e) => patchSection(s.key, { lead: e.target.value })} />
+            </label>
+          ) : null}
           <label className="label" htmlFor={`si-${s.key}`}>
-            Conseils (un par ligne)
-            <textarea id={`si-${s.key}`} className="field min-h-32" value={s.items} onChange={(e) => setSections((xs) => xs.map((x) => (x.key === s.key ? { ...x, items: e.target.value } : x)))} />
+            Conseils (un par ligne, **gras** pour les mots-clés)
+            <textarea id={`si-${s.key}`} className="field min-h-32" value={s.items} onChange={(e) => patchSection(s.key, { items: e.target.value })} />
           </label>
         </section>
       ))}
-      <button type="button" className={buttonClass("default", "self-start")} onClick={() => setSections((xs) => [...xs, { key: ++k, title: "", items: "" }])}>
+      <button type="button" className={buttonClass("default", "self-start")} onClick={() => setSections((xs) => [...xs, blankSection()])}>
         <Plus className="size-4" /> Ajouter une section
       </button>
 
