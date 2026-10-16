@@ -9,6 +9,8 @@ export interface Profile {
   is_admin: boolean;
   is_coach?: boolean;
   share_aggregates: boolean;
+  /** Rang actuel déclaré dans le profil (migration 0014). */
+  rank_id?: number | null;
 }
 
 export interface Hero {
@@ -24,7 +26,7 @@ export interface GameMode { id: number; name: string; active: boolean; sort: num
 export interface MapRef { id: number; name: string; game_mode_id: number | null; active: boolean }
 export interface Queue { id: number; name: string; active: boolean; sort: number }
 export interface Rank { id: number; name: string; tier_order: number; active: boolean }
-export interface ErrorTag { id: number; name: string; active: boolean; sort: number }
+export interface ErrorTag { id: number; name: string; active: boolean; sort: number; /** mistake : « ce qui a coincé » · strength : « ce qui a bien marché » (migration 0014). */ kind?: "mistake" | "strength" }
 
 export interface Refs {
   heroes: Hero[];
@@ -62,6 +64,8 @@ export interface MatchInput {
   award: "" | "MVP" | "SVP";
   note: string;
   tag_ids: number[];
+  /** Héros de l'équipe adverse (facultatif, 6 au plus). */
+  enemy_ids: number[];
   heroes: MatchHeroInput[];
 }
 

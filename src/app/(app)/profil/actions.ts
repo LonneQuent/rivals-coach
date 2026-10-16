@@ -9,6 +9,7 @@ const schema = z.object({
   pseudo: z.string().trim().min(1, "Le pseudo ne peut pas être vide.").max(40, "40 caractères maximum."),
   main_role: z.enum(ROLES).nullable(),
   share_aggregates: z.boolean(),
+  rank_id: z.number().int().positive().nullable().optional(),
   mains: z.array(z.number().int()).max(10),
   train: z.array(z.number().int()).max(10),
 });
@@ -23,8 +24,10 @@ export async function saveProfile(input: ProfileInput): Promise<{ ok: boolean; e
   const uid = auth.user?.id;
   if (!uid) return { ok: false, error: "Session expirée, reconnecte-toi." };
 
-  const { pseudo, main_role, share_aggregates, mains, train } = parsed.data;
-  const { error } = await supabase.from("profiles").update({ pseudo, main_role, share_aggregates }).eq("id", uid);
+  const { pseudo, main_role, share_aggregates, rank_id = null, mains, train } = parsed.data;
+  let { error } = await supabase.from("profiles").update({ pseudo, main_role, share_aggregates, rank_id }).eq("id", uid);
+  // rank_id arrive avec la migration 0014 : sans elle, on enregistre le reste
+  if (error) ({ error } = await supabase.from("profiles").update({ pseudo, main_role, share_aggregates }).eq("id", uid));
   if (error) return { ok: false, error: "Le profil n'a pas pu être enregistré." };
 
   const { error: delErr } = await supabase.from("player_heroes").delete().eq("user_id", uid);

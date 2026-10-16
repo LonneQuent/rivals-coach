@@ -29,6 +29,7 @@ export function toMatchInput(raw: unknown): MatchInput {
     award: r.award ?? "",
     note: r.note ?? "",
     tag_ids: r.match_tags.map((t) => t.tag_id),
+    enemy_ids: [],
     heroes: [...r.match_heroes]
       .sort((a, b) => a.position - b.position)
       .map(({ position: _p, ...h }) => ({
@@ -37,6 +38,12 @@ export function toMatchInput(raw: unknown): MatchInput {
         accuracy: h.accuracy === null ? null : Number(h.accuracy),
       })),
   };
+}
+
+/** Compo adverse d'une partie (table créée par la migration 0014 : vide si elle n'est pas passée). */
+export async function getEnemyIds(supabase: Awaited<ReturnType<typeof createClient>>, matchId: string): Promise<number[]> {
+  const { data, error } = await supabase.from("match_opponents").select("hero_id").eq("match_id", matchId);
+  return error ? [] : ((data ?? []) as { hero_id: number }[]).map((r) => r.hero_id);
 }
 
 export type RecentPick = { hero_id: number; role: Role; count: number };

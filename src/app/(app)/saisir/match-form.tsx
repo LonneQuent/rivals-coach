@@ -7,6 +7,7 @@ import { Plus, X } from "lucide-react";
 import { STAT_FIELDS, type MatchHeroInput, type MatchInput, type Refs, type Role, type StatKey } from "@/lib/types";
 import { buttonClass } from "@/components/ui";
 import { HeroCombobox } from "@/components/hero-combobox";
+import { EnemyPicker } from "@/components/enemy-picker";
 import { saveMatch } from "./actions";
 
 type HeroRow = { key: number; pick: string; play_minutes: string } & Record<StatKey, string>;
@@ -64,6 +65,14 @@ export function MatchForm({ refs, editing, last }: { refs: Refs; editing: MatchI
     editing ? editing.heroes.map((h) => rowFrom(h)) : [rowFrom(last?.heroes[0], false)],
   );
 
+  const [enemies, setEnemies] = useState<number[]>(editing?.enemy_ids ?? []);
+  // Plusieurs héros : stats totales (sur le premier) ou détail par héros. Une partie déjà saisie avec
+  // des stats sur plusieurs lignes est forcément en détail.
+  const [statsMode, setStatsMode] = useState<"total" | "split">(() =>
+    editing && editing.heroes.filter((h) => STAT_FIELDS.some((f) => h[f.key] !== null)).length > 1 ? "split" : "total",
+  );
+  const totalMode = rows.length > 1 && statsMode === "total";
+
   const usedHeroIds = rows.map((r) => Number(r.pick.split("|")[0])).filter(Boolean);
 
   function updateRow(key: number, patch: Partial<HeroRow>) {
@@ -96,13 +105,14 @@ export function MatchForm({ refs, editing, last }: { refs: Refs; editing: MatchI
       award,
       note: note.trim(),
       tag_ids: tags,
-      heroes: heroes.map((r) => {
+      enemy_ids: enemies,
+      heroes: heroes.map((r, idx) => {
         const [id, role] = r.pick.split("|");
         return {
           hero_id: Number(id),
           role: role as Role,
           play_minutes: toNum(r.play_minutes),
-          ...(Object.fromEntries(STAT_FIELDS.map((f) => [f.key, toNum(r[f.key])])) as Record<StatKey, number | null>),
+          ...(Object.fromEntries(STAT_FIELDS.map((f) => [f.key, totalMode && idx > 0 ? null : toNum(r[f.key])])) as Record<StatKey, number | null>),
         };
       }),
     };
@@ -118,6 +128,7 @@ export function MatchForm({ refs, editing, last }: { refs: Refs; editing: MatchI
       setFeeling(null);
       setAward("");
       setTags([]);
+      setEnemies([]);
       setNote("");
       setPlayedAt(localInput());
       setRows((rs) => [rowFrom({ ...emptyHero(), ...parsePick(rs[0]?.pick) }, false)]);
@@ -166,9 +177,27 @@ export function MatchForm({ refs, editing, last }: { refs: Refs; editing: MatchI
             </button>
           ) : null}
         </div>
+        {rows.length > 1 ? (
+          <div className="flex flex-col gap-1.5 rounded-lg bg-surface-2 p-3">
+            <span className="text-sm font-semibold">Tu as changé de héros pendant la partie. Ton tableau de fin donne…</span>
+            <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Type de stats">
+              <Chip on={statsMode === "total"} onClick={() => setStatsMode("total")} role="radio">
+                Le total de la partie
+              </Chip>
+              <Chip on={statsMode === "split"} onClick={() => setStatsMode("split")} role="radio">
+                Le détail par héros
+              </Chip>
+            </div>
+            <p className="text-xs text-muted">
+              {statsMode === "total"
+                ? "Saisis le total sur le premier héros (ton héros principal) ; pour les autres, seulement les minutes."
+                : "Saisis les stats de chaque héros, avec ses minutes."}
+            </p>
+          </div>
+        ) : null}
         {rows.map((r, idx) => {
           return (
-            <fieldset key={r.key} className={clsx("flex flex-col gap-3", idx > 0 && "border-t border-line pt-4")}>
+            <fieldset key={r.key} className={clsx("flex min-w-0 flex-col gap-3", idx > 0 && "border-t border-line pt-4")}>
               <legend className="sr-only">Héros {idx + 1}</legend>
               <div className="flex items-end gap-3">
                 <div className="min-w-0 flex-1">
@@ -193,7 +222,9 @@ export function MatchForm({ refs, editing, last }: { refs: Refs; editing: MatchI
                   </button>
                 ) : null}
               </div>
+              {totalMode && idx > 0 ? null : (
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {totalMode ? <p className="col-span-full text-xs font-semibold uppercase tracking-wide text-muted">Total de la partie</p> : null}
                 {STAT_FIELDS.map((f) => (
                   <label key={f.key} className="label" htmlFor={`${f.key}-${r.key}`}>
                     {f.label}
@@ -209,6 +240,7 @@ export function MatchForm({ refs, editing, last }: { refs: Refs; editing: MatchI
                   </label>
                 ))}
               </div>
+              )}
             </fieldset>
           );
         })}
@@ -271,6 +303,7 @@ export function MatchForm({ refs, editing, last }: { refs: Refs; editing: MatchI
             <input id="played" type="datetime-local" className="field" value={playedAt} onChange={(e) => setPlayedAt(e.target.value)} />
           </label>
         </div>
+        <EnemyPicker id="enemies" heroes={refs.heroes} value={enemies} onChange={setEnemies} />
         <div className="flex flex-wrap items-center gap-2" role="radiogroup" aria-label="Distinction">
           <span className="eyebrow mr-1">Distinction</span>
           {(["", "MVP", "SVP"] as const).map((a) => (
@@ -292,11 +325,23 @@ export function MatchForm({ refs, editing, last }: { refs: Refs; editing: MatchI
           ))}
           <span className="text-xs text-muted">1 = très mauvais · 5 = excellent</span>
         </div>
-        {refs.tags.length ? (
+        {refs.tags.some((t) => t.kind === "strength") ? (
           <div className="flex flex-col gap-2">
-            <span className="eyebrow">Erreurs de la partie</span>
+            <span className="eyebrow text-good">Ce qui a bien marché</span>
             <div className="flex flex-wrap gap-2">
-              {refs.tags.map((t) => (
+              {refs.tags.filter((t) => t.kind === "strength").map((t) => (
+                <Chip key={t.id} on={tags.includes(t.id)} onClick={() => setTags((ts) => (ts.includes(t.id) ? ts.filter((x) => x !== t.id) : [...ts, t.id]))} role="checkbox">
+                  {t.name}
+                </Chip>
+              ))}
+            </div>
+          </div>
+        ) : null}
+        {refs.tags.some((t) => t.kind !== "strength") ? (
+          <div className="flex flex-col gap-2">
+            <span className="eyebrow text-bad">Ce qui a coincé</span>
+            <div className="flex flex-wrap gap-2">
+              {refs.tags.filter((t) => t.kind !== "strength").map((t) => (
                 <Chip key={t.id} on={tags.includes(t.id)} onClick={() => setTags((ts) => (ts.includes(t.id) ? ts.filter((x) => x !== t.id) : [...ts, t.id]))} role="checkbox">
                   {t.name}
                 </Chip>

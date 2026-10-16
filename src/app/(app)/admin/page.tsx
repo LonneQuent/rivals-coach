@@ -13,7 +13,7 @@ const LABELS: Record<(typeof TABS)[number], string> = {
   game_modes: "Types de mode",
   queues: "Files",
   ranks: "Rangs",
-  error_tags: "Erreurs",
+  error_tags: "Tags de partie",
 };
 
 export default async function AdminPage({ searchParams }: { searchParams: Promise<{ t?: string }> }) {

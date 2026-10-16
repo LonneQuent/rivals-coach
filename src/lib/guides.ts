@@ -100,6 +100,14 @@ export const guideContentSchema = z.object({
   /** Enchaînements de touches, affichés en bandeau. */
   combos: z.array(combo).max(6).optional().default([]),
   kit: kit.optional(),
+  /** Placement conseillé par rôle (guides de cartes). */
+  roles: z
+    .object({
+      Vanguard: z.array(z.string().trim().min(1).max(300)).max(6).optional().default([]),
+      Duelist: z.array(z.string().trim().min(1).max(300)).max(6).optional().default([]),
+      Strategist: z.array(z.string().trim().min(1).max(300)).max(6).optional().default([]),
+    })
+    .optional(),
   counters: z.array(z.object({ hero: z.string().max(60), note: z.string().max(300) })).max(15).default([]),
   synergies: z.array(z.object({ hero: z.string().max(60), note: z.string().max(300) })).max(15).default([]),
   sources: z.array(z.object({ title: z.string().max(150), author: z.string().max(100), url: z.string().url().optional().or(z.literal("")) })).max(10).default([]),

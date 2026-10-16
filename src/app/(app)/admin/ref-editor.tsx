@@ -37,6 +37,7 @@ export function RefEditor({ table, rows: initial, gameModes }: { table: RefTable
       _dirty: true,
       ...(table === "heroes" ? { slug: "", roles: [] as Role[] } : {}),
       ...(table === "maps" ? { game_mode_id: null } : {}),
+      ...(table === "error_tags" ? { kind: "mistake" } : {}),
       ...(orderKey ? { [orderKey]: nextOrder } : {}),
     };
   };
@@ -86,6 +87,7 @@ export function RefEditor({ table, rows: initial, gameModes }: { table: RefTable
             <th className="eyebrow px-3 py-2.5">Nom</th>
             {table === "heroes" ? <th className="eyebrow px-3 py-2.5">Rôles</th> : null}
             {table === "maps" ? <th className="eyebrow px-3 py-2.5">Type de mode</th> : null}
+            {table === "error_tags" ? <th className="eyebrow px-3 py-2.5">Type</th> : null}
             <th className="eyebrow w-24 px-3 py-2.5">Actif</th>
             <th className="w-40 px-3 py-2.5" />
           </tr>
@@ -158,6 +160,14 @@ export function RefEditor({ table, rows: initial, gameModes }: { table: RefTable
                         {m.name}
                       </option>
                     ))}
+                  </select>
+                </td>
+              ) : null}
+              {table === "error_tags" ? (
+                <td className="px-3 py-2">
+                  <select aria-label="Type de tag" className="field py-1.5" value={String(r.kind ?? "mistake")} onChange={(e) => patch(r._key, { kind: e.target.value })}>
+                    <option value="mistake">Ce qui a coincé</option>
+                    <option value="strength">Ce qui a bien marché</option>
                   </select>
                 </td>
               ) : null}

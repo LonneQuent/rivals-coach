@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Fragment } from "react";
 import { AlertTriangle, Check, ChevronRight, ExternalLink, History, Lightbulb, Link2, X } from "lucide-react";
 import { sectionAnchor, type GuideCombo, type GuideContent, type GuideKit, type GuideSection } from "@/lib/guides";
-import type { Hero, Role } from "@/lib/types";
+import { ROLES, type Hero, type Role } from "@/lib/types";
 import { HeroMark } from "@/components/ui";
 import { SectionIcon } from "@/components/illustrations";
 import { GuideToc, ReadingProgress } from "@/components/guide-toc";
@@ -55,6 +55,7 @@ export function GuideView({
   role,
   accent: accentOverride,
   labels,
+  myRole,
 }: {
   content: GuideContent;
   heroes: Hero[];
@@ -63,6 +64,8 @@ export function GuideView({
   accent?: string;
   /** Titres de la partie counters/alliés (une carte parle plutôt de « héros forts ici »). */
   labels?: { matchups?: string; counters?: string; synergies?: string };
+  /** Rôle principal du joueur, mis en avant dans le placement par rôle. */
+  myRole?: Role | null;
 }) {
   const accent = accentOverride ?? ROLE_VAR[role];
   const L = { matchups: "Counters et alliés", counters: "Le contrent", synergies: "Ses meilleurs alliés", ...labels };
@@ -157,6 +160,8 @@ export function GuideView({
           </span>
         </a>
       ) : null}
+
+      {content.roles && ROLES.some((r) => content.roles?.[r].length) ? <RolePlacement roles={content.roles} myRole={myRole ?? null} /> : null}
 
       {/* Corps : sommaire + lecture */}
       <div className="grid gap-8 lg:grid-cols-[200px_minmax(0,1fr)]">
@@ -290,6 +295,40 @@ function Section({ s, id, role, accent, first, iconColor }: { s: GuideSection; i
 }
 
 const ABILITY_KIND: Record<string, string> = { primary: "Tir principal", secondary: "Tir secondaire", ability: "Capacité", ultimate: "Ultime", passive: "Passif", melee: "Mêlée" };
+
+/** Placement par rôle : trois colonnes aux couleurs des rôles, le rôle du joueur en premier. */
+function RolePlacement({ roles, myRole }: { roles: NonNullable<GuideContent["roles"]>; myRole: Role | null }) {
+  const order = myRole ? [myRole, ...ROLES.filter((r) => r !== myRole)] : [...ROLES];
+  return (
+    <section id="placement" aria-labelledby="placement-title" className="scroll-mt-24">
+      <h2 id="placement-title" className="eyebrow mb-2">
+        Où te placer selon ton rôle
+      </h2>
+      <div className="grid gap-3 md:grid-cols-3">
+        {order
+          .filter((r) => roles[r].length)
+          .map((r) => (
+            <div key={r} className="rounded-xl border border-line bg-surface p-4" style={{ borderTop: `3px solid ${ROLE_VAR[r]}` }}>
+              <p className="flex items-center gap-2 font-display text-lg font-bold uppercase tracking-wide" style={{ color: ROLE_VAR[r] }}>
+                {r}
+                {r === myRole ? <span className="rounded-full bg-surface-3 px-2 py-0.5 font-sans text-[11px] font-semibold normal-case tracking-normal text-fg-2">ton rôle</span> : null}
+              </p>
+              <ul className="mt-2 flex flex-col gap-2">
+                {roles[r].map((t, i) => (
+                  <li key={i} className="flex gap-2 text-sm leading-relaxed text-fg-2">
+                    <span className="mt-2 size-1.5 shrink-0 rounded-full" style={{ background: ROLE_VAR[r] }} aria-hidden />
+                    <span>
+                      <Rich text={t} />
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+      </div>
+    </section>
+  );
+}
 
 /** Fiche de kit : capacités, team-ups de la saison et derniers changements d'équilibrage. */
 function Kit({ kit, bySlug, accent }: { kit: GuideKit; bySlug: Map<string, Hero>; accent: string }) {

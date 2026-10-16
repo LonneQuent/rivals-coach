@@ -21,7 +21,7 @@ const SCHEMAS = {
   game_modes: z.object({ id, name, sort: z.number().int(), active: z.boolean() }),
   queues: z.object({ id, name, sort: z.number().int(), active: z.boolean() }),
   ranks: z.object({ id, name, tier_order: z.number().int(), active: z.boolean() }),
-  error_tags: z.object({ id, name, sort: z.number().int(), active: z.boolean() }),
+  error_tags: z.object({ id, name, sort: z.number().int(), active: z.boolean(), kind: z.enum(["mistake", "strength"]).optional() }),
 } as const;
 
 export type RefTable = keyof typeof SCHEMAS;

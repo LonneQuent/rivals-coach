@@ -20,7 +20,8 @@ const schema = z.object({
   feeling: z.number().int().min(1).max(5).nullable(),
   award: z.enum(["", "MVP", "SVP"]),
   note: z.string().max(1000),
-  tag_ids: z.array(z.number().int()).max(20),
+  tag_ids: z.array(z.number().int()).max(30),
+  enemy_ids: z.array(z.number().int().positive()).max(6).default([]),
   heroes: z
     .array(
       z.object({

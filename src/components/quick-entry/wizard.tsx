@@ -8,6 +8,7 @@ import { ArrowLeft, Check, Plus, X } from "lucide-react";
 import type { Hero, MatchInput, Role, StatKey } from "@/lib/types";
 import { HeroMark, RoleDot, buttonClass } from "@/components/ui";
 import { HeroCombobox } from "@/components/hero-combobox";
+import { EnemyPicker } from "@/components/enemy-picker";
 import { Mascot } from "@/components/mascot";
 import { saveMatch } from "@/app/(app)/saisir/actions";
 import type { EntryData } from "@/app/(app)/saisir/entry-actions";
@@ -62,6 +63,9 @@ export function EntryWizard({ data, onClose }: { data: EntryData; onClose?: () =
   const [result, setResult] = useState<"win" | "loss" | "">("");
   const [picks, setPicks] = useState<Pick[]>([]);
   const [multi, setMulti] = useState(false);
+  /** Plusieurs héros : stats totales de la partie (sur le héros principal) ou détail par héros. */
+  const [statsMode, setStatsMode] = useState<"total" | "split">("total");
+  const [enemies, setEnemies] = useState<number[]>([]);
 
   const [queueId, setQueueId] = useState(str(last?.queue_id ?? refs.queues[0]?.id));
   const [rankId, setRankId] = useState(str(last?.rank_id));
@@ -162,7 +166,8 @@ export function EntryWizard({ data, onClose }: { data: EntryData; onClose?: () =
       award,
       note: note.trim(),
       tag_ids: tags,
-      heroes: picks.map((p) => ({
+      enemy_ids: enemies,
+      heroes: picks.map((p, i) => (picks.length > 1 && statsMode === "total" && i > 0 ? { ...p, stats: {} } : p)).map((p) => ({
         hero_id: p.hero_id,
         role: p.role,
         play_minutes: picks.length > 1 ? toNum(p.minutes) : null,
@@ -189,6 +194,8 @@ export function EntryWizard({ data, onClose }: { data: EntryData; onClose?: () =
     setResult("");
     setPicks([]);
     setMulti(false);
+    setStatsMode("total");
+    setEnemies([]);
     setMapId("");
     setModeId("");
     setDuration("");
@@ -333,13 +340,45 @@ export function EntryWizard({ data, onClose }: { data: EntryData; onClose?: () =
               Recopie le tableau de fin de partie. <span className="hidden sm:inline">Espace ou Entrée pour passer au champ suivant. </span>Tout est facultatif.
             </p>
           </div>
+          {picks.length > 1 ? (
+            <div className="card flex flex-col gap-3">
+              <div className="flex flex-col gap-1.5">
+                <span className="eyebrow">Ton tableau de fin de partie donne…</span>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <Chip on={statsMode === "total"} onClick={() => setStatsMode("total")} className="justify-center text-xs">
+                    Le total de la partie
+                  </Chip>
+                  <Chip on={statsMode === "split"} onClick={() => setStatsMode("split")} className="justify-center text-xs">
+                    Le détail par héros
+                  </Chip>
+                </div>
+                <p className="text-xs text-muted">
+                  {statsMode === "total"
+                    ? `Saisis le total une seule fois : il est rattaché à ${heroName(picks[0].hero_id)}, ton héros principal. Pour les autres, seulement les minutes jouées.`
+                    : "Saisis les stats de chaque héros séparément, avec ses minutes."}
+                </p>
+              </div>
+            </div>
+          ) : null}
           <div ref={statsRef} className="flex flex-col gap-3">
-            {picks.map((p, i) => (
+            {picks.length > 1 && statsMode === "total" ? (
+              <div className="card flex flex-col gap-2">
+                <span className="eyebrow">Minutes jouées</span>
+                {picks.map((p, i) => (
+                  <label key={p.hero_id} className="flex items-center gap-3 text-sm">
+                    <HeroMark name={heroName(p.hero_id)} role={p.role} size="sm" src={heroById.get(p.hero_id)?.portrait_url} />
+                    <span className="flex-1 font-semibold">{heroName(p.hero_id)}</span>
+                    <StatInput label={`Minutes sur ${heroName(p.hero_id)}`} value={p.minutes} decimal onChange={(v) => setStat(i, "minutes", v, true)} onNext={focusNext} className="w-20" />
+                  </label>
+                ))}
+              </div>
+            ) : null}
+            {(picks.length > 1 && statsMode === "total" ? picks.slice(0, 1) : picks).map((p, i) => (
               <div key={p.hero_id} className="card flex flex-col gap-3">
                 <div className="flex items-center gap-3">
                   <HeroMark name={heroName(p.hero_id)} role={p.role} size="md" src={heroById.get(p.hero_id)?.portrait_url} />
-                  <p className="font-display text-lg font-bold">{heroName(p.hero_id)}</p>
-                  {picks.length > 1 ? (
+                  <p className="font-display text-lg font-bold">{picks.length > 1 && statsMode === "total" ? "Total de la partie" : heroName(p.hero_id)}</p>
+                  {picks.length > 1 && statsMode === "split" ? (
                     <label className="ml-auto flex items-center gap-2 text-xs text-fg-2">
                       Minutes
                       <StatInput value={p.minutes} decimal onChange={(v) => setStat(i, "minutes", v, true)} onNext={focusNext} className="w-16" />
@@ -408,11 +447,11 @@ export function EntryWizard({ data, onClose }: { data: EntryData; onClose?: () =
             </div>
           </div>
 
-          {refs.tags.length ? (
+          {refs.tags.some((t) => t.kind === "strength") ? (
             <div className="flex flex-col gap-2">
-              <span className="eyebrow">Ce qui a coincé</span>
+              <span className="eyebrow text-good">Ce qui a bien marché</span>
               <div className="flex flex-wrap gap-1.5">
-                {refs.tags.map((t) => (
+                {refs.tags.filter((t) => t.kind === "strength").map((t) => (
                   <Chip key={t.id} on={tags.includes(t.id)} onClick={() => setTags((ts) => (ts.includes(t.id) ? ts.filter((x) => x !== t.id) : [...ts, t.id]))}>
                     {t.name}
                   </Chip>
@@ -420,6 +459,21 @@ export function EntryWizard({ data, onClose }: { data: EntryData; onClose?: () =
               </div>
             </div>
           ) : null}
+
+          {refs.tags.some((t) => t.kind !== "strength") ? (
+            <div className="flex flex-col gap-2">
+              <span className="eyebrow text-bad">Ce qui a coincé</span>
+              <div className="flex flex-wrap gap-1.5">
+                {refs.tags.filter((t) => t.kind !== "strength").map((t) => (
+                  <Chip key={t.id} on={tags.includes(t.id)} onClick={() => setTags((ts) => (ts.includes(t.id) ? ts.filter((x) => x !== t.id) : [...ts, t.id]))}>
+                    {t.name}
+                  </Chip>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          <EnemyPicker id="wizard-enemies" heroes={refs.heroes} value={enemies} onChange={setEnemies} />
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <label className="label">

@@ -9,10 +9,18 @@ import { MascotTip } from "@/components/mascot";
 export const metadata: Metadata = { title: "Cartes" };
 
 export default async function MapsPage() {
-  const { supabase } = await requireSession();
+  const { supabase, user } = await requireSession();
   const { maps, gameModes } = await getRefs();
   const { data, error } = await supabase.from("guides").select("map_id, status").eq("kind", "map");
   const withGuide = new Set(error ? [] : ((data ?? []) as { map_id: number }[]).map((g) => g.map_id));
+  const { data: played } = await supabase.from("matches").select("map_id, result").eq("user_id", user.id).not("map_id", "is", null).limit(1000);
+  const mine = new Map<number, { games: number; wins: number }>();
+  for (const m of (played ?? []) as { map_id: number; result: "win" | "loss" }[]) {
+    const t = mine.get(m.map_id) ?? { games: 0, wins: 0 };
+    t.games++;
+    if (m.result === "win") t.wins++;
+    mine.set(m.map_id, t);
+  }
   const modes = [...gameModes].sort((a, b) => a.sort - b.sort);
 
   return (
@@ -20,7 +28,7 @@ export default async function MapsPage() {
       <PageHeader title="Cartes" subtitle="Où se placer, quels chokes tenir, quelles routes prendre : un guide par carte." />
       <MascotTip title="Le principe de toutes les cartes" pose="think" className="max-w-3xl">
         <p>
-          Bats-toi depuis les <strong className="text-fg">couverts et les coins</strong>, jamais au milieu à découvert. Pendant que tes tanks tiennent le main, prends un{" "}
+          Bats-toi depuis les <strong className="text-fg">murs et les coins</strong>, jamais au milieu à découvert. Pendant que tes tanks tiennent le main, prends un{" "}
           <strong className="text-fg">angle différent</strong> : un seul pick, et le fight bascule.
         </p>
       </MascotTip>
@@ -33,6 +41,8 @@ export default async function MapsPage() {
             <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {list.map((m) => {
                 const has = withGuide.has(m.id);
+                const me = mine.get(m.id);
+                const wr = me ? Math.round((me.wins / me.games) * 100) : null;
                 const body = (
                   <>
                     <span className={`grid size-11 shrink-0 place-items-center rounded-xl ${has ? "bg-accent/15 text-accent" : "bg-surface-3 text-muted"}`} aria-hidden>
@@ -40,7 +50,9 @@ export default async function MapsPage() {
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block font-display text-lg font-bold uppercase tracking-wide">{mapShortName(m.name)}</span>
-                      <span className="block text-xs text-muted">{mapZone(m.name)}</span>
+                      <span className="block truncate text-xs text-muted">
+                        {[mapZone(m.name), me ? `toi : ${wr} % sur ${me.games} partie${me.games > 1 ? "s" : ""}` : null].filter(Boolean).join(" · ") || "\u00a0"}
+                      </span>
                     </span>
                     {has ? <span className="text-xs font-semibold text-accent">Guide →</span> : <span className="text-xs text-muted">À venir</span>}
                   </>

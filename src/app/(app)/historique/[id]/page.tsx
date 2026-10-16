@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
-import { requireSession } from "@/lib/data";
+import { getRefs, requireSession } from "@/lib/data";
+import { getEnemyIds } from "@/lib/matches";
+import { mapShortName } from "@/lib/maps";
 import type { Role } from "@/lib/types";
 import { HeroMark, ResultPill, RoleBadge, buttonClass } from "@/components/ui";
 import { DeleteMatchButton } from "../delete-button";
@@ -39,7 +41,7 @@ type Detail = {
   mode: { name: string } | null;
   rank: { name: string } | null;
   match_heroes: HeroLine[];
-  match_tags: { tag: { name: string } | null }[];
+  match_tags: { tag: { name: string; kind?: "mistake" | "strength" } | null }[];
 };
 
 const FEELINGS = ["", "Très mauvais", "Mauvais", "Moyen", "Bon", "Excellent"];
@@ -52,7 +54,7 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
   const { data } = await supabase
     .from("matches")
     .select(
-      "id, user_id, played_at, result, duration_min, feeling, award, note, queue:queues(name), map:maps(name), mode:game_modes(name), rank:ranks(name), match_heroes(position, role, play_minutes, kills, deaths, assists, final_hits, damage, damage_blocked, healing, accuracy, hero:heroes(name, slug)), match_tags(tag:error_tags(name))",
+      "id, user_id, played_at, result, duration_min, feeling, award, note, queue:queues(name), map:maps(name), mode:game_modes(name), rank:ranks(name), match_heroes(position, role, play_minutes, kills, deaths, assists, final_hits, damage, damage_blocked, healing, accuracy, hero:heroes(name, slug)), match_tags(tag:error_tags(*))",
     )
     .eq("id", id)
     .maybeSingle();
@@ -77,13 +79,16 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
   const total = (k: keyof HeroLine) => (heroes.some((h) => h[k] !== null) ? heroes.reduce((s, h) => s + Number(h[k] ?? 0), 0) : null);
   const kills = total("kills"), deaths = total("deaths"), assists = total("assists");
   const kda = kills === null || deaths === null ? null : (kills + (assists ?? 0)) / Math.max(deaths, 1);
-  const tags = m.match_tags.map((t) => t.tag?.name).filter(Boolean) as string[];
+  const goodTags = m.match_tags.filter((t) => t.tag?.kind === "strength").map((t) => t.tag!.name);
+  const badTags = m.match_tags.filter((t) => t.tag && t.tag.kind !== "strength").map((t) => t.tag!.name);
+  const [{ heroes: allHeroes }, enemyIds] = await Promise.all([getRefs(), getEnemyIds(supabase, m.id)]);
+  const enemies = enemyIds.map((hid) => allHeroes.find((h) => h.id === hid)).filter((h) => h !== undefined);
   const date = new Date(m.played_at);
 
   const context: [string, string][] = [
     ["File", m.queue?.name ?? "–"],
     ["Mode", m.mode?.name ?? "–"],
-    ["Carte", m.map?.name ?? "–"],
+    ["Carte", m.map ? mapShortName(m.map.name) : "–"],
     ["Rang", m.rank?.name ?? "–"],
     ["Durée", m.duration_min ? `${fmt(m.duration_min, 1)} min` : "–"],
   ];
@@ -191,14 +196,39 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
             <dt className="text-muted">Ressenti</dt>
             <dd className="text-right font-semibold">{m.feeling ? `${m.feeling}/5 · ${FEELINGS[m.feeling]}` : "–"}</dd>
           </dl>
-          {tags.length ? (
+          {goodTags.length ? (
             <div className="flex flex-col gap-2">
-              <span className="eyebrow">Erreurs notées</span>
+              <span className="eyebrow">Ce qui a bien marché</span>
               <div className="flex flex-wrap gap-1.5">
-                {tags.map((t) => (
+                {goodTags.map((t) => (
+                  <span key={t} className="rounded-full bg-good-bg px-2.5 py-0.5 text-xs font-semibold text-good">
+                    {t}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          {badTags.length ? (
+            <div className="flex flex-col gap-2">
+              <span className="eyebrow">Ce qui a coincé</span>
+              <div className="flex flex-wrap gap-1.5">
+                {badTags.map((t) => (
                   <span key={t} className="rounded-full bg-bad-bg px-2.5 py-0.5 text-xs font-semibold text-bad">
                     {t}
                   </span>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          {enemies.length ? (
+            <div className="flex flex-col gap-2">
+              <span className="eyebrow">Compo adverse</span>
+              <div className="flex flex-wrap gap-1.5">
+                {enemies.map((h) => (
+                  <Link key={h.id} href={`/heros/${h.slug}`} className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface-2 py-0.5 pl-0.5 pr-2 text-xs font-semibold hover:border-accent/60">
+                    <HeroMark name={h.name} role={h.roles[0]} size="sm" src={h.portrait_url} />
+                    {h.name}
+                  </Link>
                 ))}
               </div>
             </div>

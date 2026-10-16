@@ -9,8 +9,9 @@ export const requireSession = cache(async () => {
   const { supabase, user } = await getUser();
   if (!user) redirect("/login");
   const base = "id, pseudo, avatar_url, main_role, is_admin, share_aggregates";
-  let { data, error } = await supabase.from("profiles").select(`${base}, is_coach`).eq("id", user.id).single();
-  // is_coach arrive avec la migration 0006 : en attendant, on relit sans
+  let { data, error } = await supabase.from("profiles").select(`${base}, is_coach, rank_id`).eq("id", user.id).single();
+  // is_coach (0006) et rank_id (0014) arrivent avec des migrations : en attendant, on relit sans
+  if (error) ({ data, error } = await supabase.from("profiles").select(`${base}, is_coach`).eq("id", user.id).single());
   if (error) ({ data } = await supabase.from("profiles").select(base).eq("id", user.id).single());
   const profile = data as Profile | null;
   return { supabase, user, profile, isCoach: !!(profile?.is_admin || profile?.is_coach) };
@@ -32,7 +33,8 @@ export async function getRefs(all = false): Promise<Refs> {
     only<MapRef>(active(supabase.from("maps").select("id, name, game_mode_id, active")).order("name")),
     only<Queue>(active(supabase.from("queues").select("id, name, active, sort")).order("sort")),
     only<Rank>(active(supabase.from("ranks").select("id, name, tier_order, active")).order("tier_order")),
-    only<ErrorTag>(active(supabase.from("error_tags").select("id, name, active, sort")).order("sort")),
+    // select * : la colonne kind arrive avec la migration 0014
+    only<ErrorTag>(active(supabase.from("error_tags").select("*")).order("sort")),
   ]);
   return { heroes, gameModes, maps, queues, ranks, tags };
 }

@@ -69,11 +69,13 @@ export default async function ProfilPage() {
       <PageHeader title="Mon profil" subtitle="Ton identité dans l'app, tes axes de travail et ta progression." />
       <ProfileSection
         heroes={refs.heroes}
+        ranks={refs.ranks}
         avatarUrl={profile?.avatar_url ?? null}
         initial={{
           pseudo: profile?.pseudo ?? "",
           main_role: profile?.main_role ?? null,
           share_aggregates: profile?.share_aggregates ?? true,
+          rank_id: profile?.rank_id ?? null,
           mains: rows.filter((r) => r.kind === "main").map((r) => r.hero_id),
           train: rows.filter((r) => r.kind === "train").map((r) => r.hero_id),
         }}

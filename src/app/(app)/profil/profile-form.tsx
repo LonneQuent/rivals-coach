@@ -4,7 +4,7 @@ import clsx from "clsx";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { Pencil, Search, X } from "lucide-react";
-import { ROLES, type Hero, type Role } from "@/lib/types";
+import { ROLES, type Hero, type Rank, type Role } from "@/lib/types";
 import { HeroMark, ROLE_STYLES, RoleBadge, RoleDot, buttonClass } from "@/components/ui";
 import { saveProfile, type ProfileInput } from "./actions";
 
@@ -21,7 +21,7 @@ const norm = (s: string) =>
  * Profil : résumé par défaut, formulaire seulement au premier passage
  * (pas de pseudo ni de mains) ou quand on clique sur « Modifier ».
  */
-export function ProfileSection({ heroes, initial, avatarUrl }: { heroes: Hero[]; initial: ProfileInput; avatarUrl: string | null }) {
+export function ProfileSection({ heroes, ranks, initial, avatarUrl }: { heroes: Hero[]; ranks: Rank[]; initial: ProfileInput; avatarUrl: string | null }) {
   const firstTime = !initial.pseudo || initial.mains.length === 0;
   const [editing, setEditing] = useState(firstTime);
   const [saved, setSaved] = useState(initial);
@@ -31,6 +31,7 @@ export function ProfileSection({ heroes, initial, avatarUrl }: { heroes: Hero[];
     return (
       <ProfileForm
         heroes={heroes}
+        ranks={ranks}
         initial={saved}
         firstTime={firstTime && !justSaved}
         onCancel={firstTime && !justSaved ? undefined : () => setEditing(false)}
@@ -43,10 +44,10 @@ export function ProfileSection({ heroes, initial, avatarUrl }: { heroes: Hero[];
       />
     );
   }
-  return <ProfileSummary heroes={heroes} profile={saved} avatarUrl={avatarUrl} justSaved={justSaved} onEdit={() => setEditing(true)} />;
+  return <ProfileSummary heroes={heroes} ranks={ranks} profile={saved} avatarUrl={avatarUrl} justSaved={justSaved} onEdit={() => setEditing(true)} />;
 }
 
-function ProfileSummary({ heroes, profile, avatarUrl, justSaved, onEdit }: { heroes: Hero[]; profile: ProfileInput; avatarUrl: string | null; justSaved: boolean; onEdit: () => void }) {
+function ProfileSummary({ heroes, ranks, profile, avatarUrl, justSaved, onEdit }: { heroes: Hero[]; ranks: Rank[]; profile: ProfileInput; avatarUrl: string | null; justSaved: boolean; onEdit: () => void }) {
   const byId = new Map(heroes.map((h) => [h.id, h]));
   const list = (ids: number[]) => ids.map((id) => byId.get(id)).filter(Boolean) as Hero[];
   return (
@@ -67,6 +68,7 @@ function ProfileSummary({ heroes, profile, avatarUrl, justSaved, onEdit }: { her
           <p className="font-display text-2xl font-bold">{profile.pseudo}</p>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted">
             {profile.main_role ? <RoleBadge role={profile.main_role} /> : <span>Pas de rôle principal</span>}
+            <span>· {ranks.find((r) => r.id === profile.rank_id)?.name ?? "Rang non renseigné"}</span>
             <span>· {profile.share_aggregates ? "Contribue aux stats du groupe" : "Ne contribue pas aux stats du groupe"}</span>
           </div>
         </div>
@@ -104,12 +106,14 @@ function HeroList({ title, heroes, empty }: { title: string; heroes: Hero[]; emp
 
 function ProfileForm({
   heroes,
+  ranks,
   initial,
   firstTime,
   onSaved,
   onCancel,
 }: {
   heroes: Hero[];
+  ranks: Rank[];
   initial: ProfileInput;
   firstTime: boolean;
   onSaved: (v: ProfileInput) => void;
@@ -174,6 +178,18 @@ function ProfileForm({
             ))}
           </div>
         </div>
+        <label className="label" htmlFor="rank">
+          Rang actuel
+          <select id="rank" className="field" value={form.rank_id ?? ""} onChange={(e) => setForm({ ...form, rank_id: e.target.value ? Number(e.target.value) : null })}>
+            <option value="">Non renseigné</option>
+            {ranks.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name}
+              </option>
+            ))}
+          </select>
+          <span className="text-xs font-normal text-muted">Sert à comparer tes stats à celles des joueurs de ton rang.</span>
+        </label>
         <label className="flex items-start gap-3 text-sm text-fg-2 sm:col-span-2">
           <input type="checkbox" className="mt-1 size-4 accent-[var(--color-accent)]" checked={form.share_aggregates} onChange={(e) => setForm({ ...form, share_aggregates: e.target.checked })} />
           <span>Contribuer aux stats du groupe. Seuls des totaux anonymes sont partagés, tes parties restent privées.</span>

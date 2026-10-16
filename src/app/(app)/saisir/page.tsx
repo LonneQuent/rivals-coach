@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getRefs, requireSession } from "@/lib/data";
-import { getEntryContext, MATCH_INPUT_COLS, toMatchInput } from "@/lib/matches";
+import { getEnemyIds, getEntryContext, MATCH_INPUT_COLS, toMatchInput } from "@/lib/matches";
 import type { MatchInput } from "@/lib/types";
 import { EmptyState, PageHeader } from "@/components/ui";
 import { EntryWizard } from "@/components/quick-entry/wizard";
@@ -21,7 +21,7 @@ export default async function SaisirPage({ searchParams }: { searchParams: Promi
   let editing: MatchInput | null = null;
   if (edit) {
     const { data } = await supabase.from("matches").select(MATCH_INPUT_COLS).eq("id", edit).eq("user_id", user.id).maybeSingle();
-    if (data) editing = toMatchInput(data);
+    if (data) editing = { ...toMatchInput(data), enemy_ids: await getEnemyIds(supabase, edit) };
   }
 
   // Modification d'une partie, ou formulaire complet demandé : tout sur un écran

@@ -81,6 +81,11 @@ export function GuideEditor({
   const patchCombo = (key: number, p: Partial<ComboDraft>) => setCombos((xs) => xs.map((x) => (x.key === key ? { ...x, ...p } : x)));
   const [counters, setCounters] = useState(initial.counters.map((c) => `${nameOf(c.hero)} | ${c.note}`).join("\n"));
   const [synergies, setSynergies] = useState(initial.synergies.map((c) => `${nameOf(c.hero)} | ${c.note}`).join("\n"));
+  const [roleTips, setRoleTips] = useState({
+    Vanguard: (initial.roles?.Vanguard ?? []).join("\n"),
+    Duelist: (initial.roles?.Duelist ?? []).join("\n"),
+    Strategist: (initial.roles?.Strategist ?? []).join("\n"),
+  });
   const [sources, setSources] = useState(initial.sources.map((s) => [s.title, s.author, s.url].filter(Boolean).join(" | ")).join("\n"));
 
   function heroNotes(text: string, label: string) {
@@ -125,6 +130,9 @@ export function GuideEditor({
         .map((c) => ({ title: c.title.trim(), steps: parseComboSteps(c.steps), note: c.note.trim() }))
         .filter((c) => c.title && c.steps.length >= 2)
         .slice(0, 6),
+      ...(target.kind === "map" || initial.roles
+        ? { roles: { Vanguard: lines(roleTips.Vanguard).slice(0, 6), Duelist: lines(roleTips.Duelist).slice(0, 6), Strategist: lines(roleTips.Strategist).slice(0, 6) } }
+        : {}),
       counters: c.out,
       synergies: s.out,
       sources: lines(sources).map((l) => {
@@ -163,7 +171,7 @@ export function GuideEditor({
         </label>
         <label className="label" htmlFor="tldr">
           En bref : les 3 choses à retenir (une par ligne, **gras** possible)
-          <textarea id="tldr" className="field min-h-24" value={tldr} onChange={(e) => setTldr(e.target.value)} placeholder="Joue **en flanc** : ta valeur, c'est la pression sur les supports." />
+          <textarea id="tldr" className="field min-h-24" value={tldr} onChange={(e) => setTldr(e.target.value)} placeholder="Joue **en flank** : ta valeur, c'est la pression sur les supports." />
         </label>
         <div className="grid gap-4 sm:grid-cols-[200px_1fr]">
           <label className="label" htmlFor="difficulty">
@@ -297,6 +305,21 @@ export function GuideEditor({
           </button>
         ) : null}
       </section>
+
+      {target.kind === "map" ? (
+        <section className="card flex flex-col gap-3">
+          <h2 className="text-lg uppercase tracking-wide">Où se placer selon le rôle</h2>
+          <p className="text-sm text-muted">Un conseil par ligne, six au maximum par rôle.</p>
+          <div className="grid gap-4 md:grid-cols-3">
+            {(["Vanguard", "Duelist", "Strategist"] as const).map((r) => (
+              <label key={r} className="label" htmlFor={`role-${r}`}>
+                {r}
+                <textarea id={`role-${r}`} className="field min-h-36" value={roleTips[r]} onChange={(e) => setRoleTips((t) => ({ ...t, [r]: e.target.value }))} />
+              </label>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className="card grid gap-4 md:grid-cols-2">
         <label className="label" htmlFor="counters">
