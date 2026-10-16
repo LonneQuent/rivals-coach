@@ -33,9 +33,9 @@ export default async function CompsPage() {
 
       <MascotTip title="Comment choisir" pose="think" className="max-w-3xl">
         <p>
-          Retiens le triangle : le <strong className="text-fg">brawl</strong> bat la <strong className="text-fg">plongée</strong>, la plongée bat le{" "}
-          <strong className="text-fg">harcèlement à distance</strong>, et le harcèlement bat le brawl. Regarde ce que joue l&apos;équipe d&apos;en face, puis
-          prends la compo qui la contre parmi celles que vous savez jouer.
+          Retiens le triangle : le <strong className="text-fg">brawl</strong> bat le <strong className="text-fg">dive</strong>, le dive bat le{" "}
+          <strong className="text-fg">poke</strong>, et le poke bat le brawl. Regarde ce que joue l&apos;équipe d&apos;en face, puis prends la compo qui la
+          contre parmi celles que vous savez jouer.
         </p>
       </MascotTip>
 

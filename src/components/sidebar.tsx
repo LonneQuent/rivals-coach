@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
   ChartColumn,
+  GraduationCap,
   History,
   House,
   LogOut,
@@ -29,6 +30,7 @@ const ITEMS: Item[] = [
   { href: "/historique", label: "Historique", icon: History },
   { href: "/stats", label: "Stats", icon: ChartColumn },
   { href: "/compos", label: "Compos", icon: Swords },
+  { href: "/quiz", label: "Quiz", icon: GraduationCap },
   { href: "/questions", label: "Questions", icon: MessageCircleQuestion },
   { href: "/equipe", label: "Équipe", icon: Users, coach: true },
   { href: "/admin", label: "Admin", icon: Settings, admin: true },

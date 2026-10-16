@@ -51,6 +51,11 @@ export default async function HeroPage({ params }: { params: Promise<{ slug: str
             {games.length ? `${Math.round((wins / games.length) * 100)} % · ${games.length} partie${games.length > 1 ? "s" : ""}` : "Pas encore joué"}
           </p>
         </div>
+        {guide?.status === "published" ? (
+          <Link href={`/quiz/${hero.slug}`} className={buttonClass("primary")}>
+            Quiz {hero.name}
+          </Link>
+        ) : null}
         {profile?.is_admin ? (
           <Link href={`/admin/guides/hero/${hero.slug}`} className={buttonClass("default")}>
             {guide ? "Modifier la fiche" : "Créer la fiche"}
