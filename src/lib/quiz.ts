@@ -2,8 +2,8 @@ import type { GuideContent } from "@/lib/guides";
 import type { Hero } from "@/lib/types";
 
 /*
- * Quiz de connaissance des héros : les questions sont tirées du contenu des guides et des kits
- * (touches, capacités, team-ups, counters, alliés, erreurs à éviter, combos). Aucun appel externe.
+ * Quiz de connaissance : des questions rédigées (mises en situation, une seule bonne réponse, explication)
+ * complétées par des questions tirées des guides (capacités, team-ups, équilibrage, counters, combos). Aucun appel externe.
  */
 
 export type QuizQuestion = {
@@ -17,6 +17,8 @@ export type QuizQuestion = {
   answer: number;
   /** Explication montrée après la réponse. */
   explain: string;
+  /** Lien vers la section du guide qui en parle. */
+  href?: string;
 };
 
 export type QuizSource = { hero: Hero; guide: GuideContent };
@@ -62,46 +64,64 @@ function mcq(base: Omit<QuizQuestion, "options" | "answer">, correct: string, de
 const KEYS = ["Clic G", "Clic D", "Maj", "E", "F", "Q", "Espace", "Mêlée"];
 const singleKey = (k: string) => (k && !/[·/,]/.test(k) ? k.trim() : "");
 
-/** Toutes les questions possibles pour un héros. */
+/** Question rédigée à la main (table quiz_questions) : la bonne réponse est rangée en premier. */
+export type HandQuestion = {
+  key: string;
+  /** Slug du héros, ou null pour une carte ou un guide général. */
+  heroSlug: string | null;
+  /** Libellé affiché (nom du héros, de la carte ou du guide). */
+  subject: string;
+  topic: string;
+  prompt: string;
+  options: string[];
+  answer: number;
+  explain: string;
+  /** Lien vers la section du guide (ancre comprise), calculé au chargement. */
+  href?: string;
+};
+
+/** Mélange les options d'une question rédigée (graine reproductible). */
+function fromHand(h: HandQuestion, rng: Rng): QuizQuestion {
+  const correct = h.options[h.answer];
+  const options = shuffle(h.options, rng);
+  return { id: `hand-${h.key}`, heroSlug: h.heroSlug ?? "", heroName: h.subject, topic: h.topic, prompt: h.prompt, options, answer: options.indexOf(correct), explain: h.explain, href: h.href };
+}
+
+/**
+ * Questions générées depuis les guides, pour compléter les questions rédigées.
+ * Seulement des formats sans ambiguïté : les leurres sont pris dans le même guide (alliés contre counters,
+ * capacités du même héros) ou exclus explicitement (partenaires de team-up).
+ */
 function questionsFor({ hero, guide }: QuizSource, all: QuizSource[], rng: Rng): QuizQuestion[] {
   const out: QuizQuestion[] = [];
-  const base = (topic: string, n: number) => ({ id: `${hero.slug}-${topic}-${n}`, heroSlug: hero.slug, heroName: hero.name, topic });
+  const base = (topic: string, n: number) => ({ id: `${hero.slug}-${topic}-${n}`, heroSlug: hero.slug, heroName: hero.name, topic, href: `/heros/${hero.slug}` });
   const others = all.filter((s) => s.hero.slug !== hero.slug);
   const nameOf = (slug: string) => all.find((s) => s.hero.slug === slug)?.hero.name ?? slug;
   const kit = guide.kit;
 
-  // Touches des capacités (kit en priorité, sinon sections du guide)
-  const abilities = kit?.abilities.length
-    ? kit.abilities.map((a) => ({ name: a.name, key: singleKey(a.key), text: a.text, kind: a.kind }))
-    : guide.sections.filter((s) => s.ability && !s.ability.includes("·")).map((s) => ({ name: s.ability, key: singleKey(s.key), text: s.lead, kind: "ability" as const }));
+  // Retrouver la capacité d'après sa description (options : les autres capacités du même héros)
+  const abilities = guide.sections.filter((s) => s.ability && !s.ability.includes("·")).map((s) => ({ name: s.ability, key: singleKey(s.key), text: s.lead }));
   abilities
-    .filter((a) => a.key && a.kind !== "passive")
+    .filter((a) => a.text.length > 30 && !abilities.some((b) => b.name !== a.name && a.text.toLowerCase().includes(b.name.toLowerCase())))
     .forEach((a, i) => {
-      const q = mcq({ ...base("Touches", i), prompt: `Quelle est la touche par défaut de « ${a.name} » ?`, explain: `${a.name} : ${a.key}.` }, a.key, KEYS, rng);
+      const desc = plain(a.text).replace(new RegExp(a.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"), "???");
+      const q = mcq(
+        { ...base("Capacités", i), prompt: `${hero.name} : quelle capacité correspond à « ${clip(desc, 170)} » ?`, explain: `C'est ${a.name}${a.key ? ` (${a.key})` : ""}.` },
+        a.name,
+        abilities.map((x) => x.name),
+        rng,
+      );
       if (q) out.push(q);
     });
 
-  // Retrouver la capacité d'après sa description
-  const named = abilities.filter((a) => a.text && a.text.length > 30);
-  named.forEach((a, i) => {
-    const desc = plain(a.text).replace(new RegExp(a.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"), "???");
-    const q = mcq(
-      { ...base("Capacités", i), prompt: `Quelle capacité correspond à : « ${clip(desc, 170)} » ?`, explain: `C'est ${a.name}${a.key ? ` (${a.key})` : ""}.` },
-      a.name,
-      abilities.map((x) => x.name),
-      rng,
-    );
-    if (q) out.push(q);
-  });
-
-  // Team-ups de la saison
+  // Team-ups de la saison : les leurres excluent tous les partenaires réels
   (kit?.teamups ?? []).forEach((t, i) => {
     const partners = t.partners.filter((p) => p !== hero.slug);
     const partner = pick(partners, rng);
     if (!partner) return;
     const decoys = others.map((o) => o.hero.name).filter((n) => !partners.map(nameOf).includes(n));
     const q = mcq(
-      { ...base("Team-ups", i), prompt: `Avec quel héros ${hero.name} partage-t-il le team-up « ${t.name} » ?`, explain: `${t.name} : ${hero.name} avec ${partners.map(nameOf).join(", ")}${t.text ? `. ${plain(t.text)}` : "."}` },
+      { ...base("Team-ups", i), prompt: `Quel héros partage le team-up « ${t.name} » avec ${hero.name} ?`, explain: `${t.name} : ${hero.name} avec ${partners.map(nameOf).join(", ")}${t.text ? `. ${plain(t.text)}` : "."}` },
       nameOf(partner),
       shuffle(decoys, rng).slice(0, 6),
       rng,
@@ -109,37 +129,30 @@ function questionsFor({ hero, guide }: QuizSource, all: QuizSource[], rng: Rng):
     if (q) out.push(q);
   });
 
-  // Chiffres du kit
-  const numeric = (kit?.abilities ?? []).flatMap((a) => a.stats.map((st) => ({ a, st })));
-  shuffle(numeric, rng)
-    .slice(0, 2)
-    .forEach(({ a, st }, i) => {
-      const sameLabel = all.flatMap((s) => (s.guide.kit?.abilities ?? []).flatMap((x) => x.stats.filter((y) => y.label === st.label).map((y) => y.value)));
-      const q = mcq({ ...base("Chiffres", i), prompt: `${a.name} : quelle est la valeur de « ${st.label} » ?`, explain: `${a.name} — ${st.label} : ${st.value}${kit?.season ? ` (${kit.season})` : ""}.` }, st.value, sameLabel, rng);
-      if (q) out.push(q);
-    });
+  // Changements récents : le vrai changement du héros parmi ceux d'autres héros
+  const changes = (kit?.changes ?? []).filter((c) => !/^Tous les /.test(c.text));
+  const otherChanges = others.flatMap((o) => (o.guide.kit?.changes ?? []).filter((c) => !/^Tous les /.test(c.text)).map((c) => c.text));
+  changes.slice(0, 2).forEach((c, i) => {
+    const q = mcq(
+      { ...base("Équilibrage", i), prompt: `Lequel de ces changements récents concerne ${hero.name} ?`, explain: `${c.season} : ${c.text}` },
+      clip(c.text, 160),
+      shuffle(otherChanges, rng).slice(0, 6).map((t) => clip(t, 160)),
+      rng,
+    );
+    if (q) out.push(q);
+  });
 
-  // Counters et alliés
+  // Counters et alliés : les leurres sont pris dans l'autre liste du même guide, jamais au hasard
+  const counterNames = guide.counters.map((x) => nameOf(x.hero));
+  const allyNames = guide.synergies.map((x) => nameOf(x.hero));
   guide.counters.forEach((c, i) => {
-    const bad = new Set(guide.counters.map((x) => x.hero));
-    const decoys = [...guide.synergies.map((x) => nameOf(x.hero)), ...others.filter((o) => !bad.has(o.hero.slug)).map((o) => o.hero.name)];
-    const q = mcq({ ...base("Counters", i), prompt: `D'après le guide, lequel de ces héros est un counter de ${hero.name} ?`, explain: `${nameOf(c.hero)} : ${plain(c.note)}` }, nameOf(c.hero), shuffle(decoys, rng).slice(0, 6), rng);
+    const decoys = allyNames.filter((n) => !counterNames.includes(n));
+    const q = mcq({ ...base("Counters", i), prompt: `D'après le guide, lequel de ces héros pose le plus de problèmes à ${hero.name} ?`, explain: `${nameOf(c.hero)} : ${plain(c.note)} Les autres sont listés comme de bons alliés.` }, nameOf(c.hero), decoys, rng);
     if (q) out.push(q);
   });
   guide.synergies.forEach((c, i) => {
-    const good = new Set(guide.synergies.map((x) => x.hero));
-    const decoys = [...guide.counters.map((x) => nameOf(x.hero)), ...others.filter((o) => !good.has(o.hero.slug)).map((o) => o.hero.name)];
-    const q = mcq({ ...base("Alliés", i), prompt: `D'après le guide, lequel de ces héros est un bon allié de ${hero.name} ?`, explain: `${nameOf(c.hero)} : ${plain(c.note)}` }, nameOf(c.hero), shuffle(decoys, rng).slice(0, 6), rng);
-    if (q) out.push(q);
-  });
-
-  // Erreurs à éviter, mélangées avec de bons réflexes
-  const mistakes = guide.sections.filter((s) => s.kind === "mistakes").flatMap((s) => s.items);
-  // Leurres : de bons réflexes (sections d'astuces d'abord), formulés comme des conseils
-  const tips = guide.sections.filter((s) => s.kind === "tips").flatMap((s) => s.items);
-  const good = (tips.length >= 3 ? tips : guide.sections.filter((s) => s.kind !== "mistakes").flatMap((s) => s.items)).filter((t) => t.length < 120);
-  mistakes.forEach((m, i) => {
-    const q = mcq({ ...base("Erreurs", i), prompt: `Avec ${hero.name}, laquelle de ces habitudes est une erreur ?`, explain: `À éviter : ${plain(m)}` }, clip(plain(m), 120), shuffle(good, rng).map((g) => clip(plain(g), 120)), rng);
+    const decoys = counterNames.filter((n) => !allyNames.includes(n));
+    const q = mcq({ ...base("Alliés", i), prompt: `D'après le guide, lequel de ces héros est un bon allié de ${hero.name} ?`, explain: `${nameOf(c.hero)} : ${plain(c.note)} Les autres sont listés comme des counters.` }, nameOf(c.hero), decoys, rng);
     if (q) out.push(q);
   });
 
@@ -150,7 +163,7 @@ function questionsFor({ hero, guide }: QuizSource, all: QuizSource[], rng: Rng):
     if (!hole) return;
     const shown = c.steps.map((s, j) => (j === hole.j ? "???" : s.key || s.label)).join(" → ");
     const q = mcq(
-      { ...base("Combos", i), prompt: `Combo « ${c.title} » : ${shown}. Quelle touche manque ?`, explain: `${c.title} : ${c.steps.map((s) => s.key || s.label).join(" → ")}.${c.note ? ` ${plain(c.note)}` : ""}` },
+      { ...base("Combos", i), prompt: `Combo « ${c.title} » de ${hero.name} : ${shown}. Quelle touche manque ?`, explain: `${c.title} : ${c.steps.map((s) => `${s.key ? `${s.key} ` : ""}(${s.label})`).join(" → ")}.${c.note ? ` ${plain(c.note)}` : ""}` },
       hole.s.key,
       KEYS,
       rng,
@@ -158,31 +171,32 @@ function questionsFor({ hero, guide }: QuizSource, all: QuizSource[], rng: Rng):
     if (q) out.push(q);
   });
 
-  return out;
+  // Un exemplaire de chaque thème d'abord, les doublons ensuite : deux questions « counters » d'affilée lassent vite
+  const mixed = shuffle(out, rng);
+  const seen = new Set<string>();
+  const firsts = mixed.filter((q) => !seen.has(q.topic) && seen.add(q.topic));
+  return [...firsts, ...mixed.filter((q) => !firsts.includes(q))];
 }
 
 /**
- * Tire un quiz : questions variées (on évite d'enchaîner deux fois le même thème), réparties entre les héros demandés.
- * `pool` = héros interrogés ; `all` = tous les héros avec guide (pour les leurres).
+ * Tire un quiz. Les questions rédigées passent en premier, les questions générées complètent ;
+ * les héros sont interrogés à tour de rôle, en évitant deux fois de suite le même thème.
+ * `pool` = héros interrogés (vide pour un quiz de cartes) ; `all` = tous les héros avec guide (pour les leurres) ;
+ * `hand` = questions rédigées disponibles pour ce quiz.
  */
-export function buildQuiz(pool: QuizSource[], all: QuizSource[], count: number, seed: number): QuizQuestion[] {
+export function buildQuiz({ pool, all, hand, count, seed }: { pool: QuizSource[]; all: QuizSource[]; hand: HandQuestion[]; count: number; seed: number }): QuizQuestion[] {
   const rng = seededRng(seed);
-  const perHero = pool.map((p) => shuffle(questionsFor(p, all, rng), rng));
+  const queues: QuizQuestion[][] = pool.length
+    ? pool.map((p) => [...shuffle(hand.filter((h) => h.heroSlug === p.hero.slug), rng).map((h) => fromHand(h, rng)), ...questionsFor(p, all, rng)])
+    : [shuffle(hand, rng).map((h) => fromHand(h, rng))];
   const picked: QuizQuestion[] = [];
-  // Pas plus d'un quart du quiz sur le même thème (sauf s'il ne reste que ça)
-  const cap = Math.max(2, Math.ceil(count / 4));
-  const used = (t: string) => picked.filter((q) => q.topic === t).length;
   let guard = 0;
-  while (picked.length < count && perHero.some((q) => q.length) && guard++ < 500) {
-    for (const qs of shuffle(perHero, rng)) {
-      if (picked.length >= count) break;
+  while (picked.length < count && queues.some((q) => q.length) && guard++ < 500) {
+    for (const qs of shuffle(queues, rng)) {
+      if (picked.length >= count || !qs.length) continue;
       const last = picked.at(-1)?.topic;
-      let idx = qs.findIndex((q) => q.topic !== last && used(q.topic) < cap);
-      if (idx === -1) idx = qs.findIndex((q) => used(q.topic) < cap);
-      if (idx === -1 && guard > 50) idx = 0;
-      if (idx === -1) continue;
-      const [q] = qs.splice(idx, 1);
-      if (q) picked.push(q);
+      const idx = Math.max(0, qs.findIndex((q) => q.topic !== last));
+      picked.push(qs.splice(idx, 1)[0]);
     }
   }
   return picked;

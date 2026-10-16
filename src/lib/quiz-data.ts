@@ -1,8 +1,9 @@
 import "server-only";
 import type { createClient } from "@/lib/supabase/server";
-import { parseContent } from "@/lib/guides";
-import type { QuizSource } from "@/lib/quiz";
-import type { Hero } from "@/lib/types";
+import { parseContent, sectionAnchor } from "@/lib/guides";
+import { mapShortName, mapSlug } from "@/lib/maps";
+import type { HandQuestion, QuizSource } from "@/lib/quiz";
+import type { Hero, MapRef } from "@/lib/types";
 
 type Client = Awaited<ReturnType<typeof createClient>>;
 
@@ -31,4 +32,55 @@ export async function getBestScores(supabase: Client, userId: string, heroes: He
     if (!cur || r.score / r.total > cur.score / cur.total) best.set(key, { score: r.score, total: r.total, at: r.created_at });
   }
   return best;
+}
+
+type HandRow = {
+  key: string;
+  hero_id: number | null;
+  map_id: number | null;
+  guide_slug: string | null;
+  topic: string;
+  prompt: string;
+  options: string[];
+  answer: number;
+  explain: string;
+  section: string;
+};
+
+/**
+ * Questions rédigées (migration 0015), avec le lien vers la section du guide concernée.
+ * Tableau vide si la table n'existe pas encore : le quiz se rabat alors sur les questions générées.
+ */
+export async function getHandQuestions(supabase: Client, heroes: Hero[], maps: MapRef[], sources: QuizSource[]): Promise<HandQuestion[]> {
+  const { data, error } = await supabase.from("quiz_questions").select("key, hero_id, map_id, guide_slug, topic, prompt, options, answer, explain, section").eq("active", true);
+  if (error || !data?.length) return [];
+  const rows = data as HandRow[];
+  const needOther = rows.some((r) => !r.hero_id);
+  const other = needOther ? (((await supabase.from("guides").select("kind, map_id, slug, content").in("kind", ["map", "general"])).data ?? []) as { kind: string; map_id: number | null; slug: string | null; content: unknown }[]) : [];
+  const heroById = new Map(heroes.map((h) => [h.id, h]));
+  const guideOfHero = new Map(sources.map((s) => [s.hero.id, s.guide]));
+  const anchor = (sections: { title: string }[] | undefined, title: string) => {
+    const i = (sections ?? []).findIndex((s) => s.title === title);
+    return i === -1 ? "" : `#${sectionAnchor(title, i)}`;
+  };
+  return rows.flatMap((r): HandQuestion[] => {
+    const base = { key: r.key, topic: r.topic, prompt: r.prompt, options: r.options, answer: r.answer, explain: r.explain };
+    if (r.hero_id) {
+      const h = heroById.get(r.hero_id);
+      if (!h) return [];
+      return [{ ...base, heroSlug: h.slug, subject: h.name, href: `/heros/${h.slug}${anchor(guideOfHero.get(h.id)?.sections, r.section)}` }];
+    }
+    if (r.map_id) {
+      const m = maps.find((x) => x.id === r.map_id);
+      if (!m) return [];
+      const g = other.find((x) => x.kind === "map" && x.map_id === m.id);
+      return [{ ...base, heroSlug: null, subject: mapShortName(m.name), href: `/cartes/${mapSlug(m.name)}${anchor(g ? parseContent(g.content).sections : undefined, r.section)}` }];
+    }
+    if (r.guide_slug) {
+      const g = other.find((x) => x.kind === "general" && x.slug === r.guide_slug);
+      const c = g ? parseContent(g.content) : null;
+      return [{ ...base, heroSlug: null, subject: c?.title || r.guide_slug, href: `/guides/${r.guide_slug}${anchor(c?.sections, r.section)}` }];
+    }
+    return [];
+  });
 }

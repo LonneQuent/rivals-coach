@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Dices, Star } from "lucide-react";
+import { Dices, Map as MapIcon, Star } from "lucide-react";
 import { getRefs, requireSession } from "@/lib/data";
 import { getPlayedHeroes } from "@/lib/comps-data";
 import { getBestScores, getQuizSources } from "@/lib/quiz-data";
@@ -29,13 +29,15 @@ export default async function QuizHome() {
 
   return (
     <>
-      <PageHeader title="Quiz des héros" subtitle="Touches, team-ups, chiffres du kit, counters, erreurs à éviter : vérifie que tu connais vraiment tes persos." />
+      <PageHeader title="Quiz des héros" subtitle="Mises en situation, kit, team-ups, équilibrage, cartes : vérifie que tu connais vraiment tes persos." />
       <MascotTip title="Le Prof interroge" pose="think" className="max-w-3xl">
-        <p>Chaque quiz tire 10 questions au hasard dans les guides. Ton meilleur score est gardé : vise le sans-faute sur tes mains avant de les jouer en ranked.</p>
+        <p>
+          10 questions par quiz, avec une explication après chaque réponse et le corrigé complet à la fin. Tu peux rejouer uniquement tes erreurs, et ton meilleur score est gardé : vise le sans-faute sur tes mains avant de les jouer en ranked.
+        </p>
       </MascotTip>
       {best === null ? <p className="rounded-lg bg-surface-3 px-3 py-2 text-sm text-fg-2">Les scores ne sont pas encore enregistrés : un admin doit exécuter la migration 0012.</p> : null}
 
-      <section className="grid gap-3 sm:grid-cols-2">
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <Link href={mine.length ? "/quiz/mes-heros" : "/quiz/melange"} className="card lift flex items-center gap-4">
           <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-accent/15 text-accent" aria-hidden>
             <Star className="size-6" />
@@ -55,6 +57,16 @@ export default async function QuizHome() {
             <p className="text-sm text-fg-2">10 questions sur tout le roster : parfait pour connaître les héros d&apos;en face.</p>
           </div>
           {fmt("mix") ? <span className="font-display text-lg font-bold text-accent tabular">{fmt("mix")}</span> : null}
+        </Link>
+        <Link href="/quiz/cartes" className="card lift flex items-center gap-4">
+          <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-surface-3 text-fg" aria-hidden>
+            <MapIcon className="size-6" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="font-display text-xl font-bold uppercase tracking-wide">Cartes et game sense</p>
+            <p className="text-sm text-fg-2">Placements, chokes, cycle d&apos;ults : le savoir qui ne dépend pas du héros.</p>
+          </div>
+          {fmt("maps") ? <span className="font-display text-lg font-bold text-accent tabular">{fmt("maps")}</span> : null}
         </Link>
       </section>
 
