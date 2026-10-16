@@ -17,6 +17,13 @@ export async function getQuizSources(supabase: Client, heroes: Hero[]): Promise<
   });
 }
 
+/** Héros qui ont un guide publié, sans le contenu : suffisant pour l'accueil des quiz, bien plus léger. */
+export async function getGuideHeroes(supabase: Client, heroes: Hero[]): Promise<Hero[]> {
+  const { data } = await supabase.from("guides").select("hero_id").eq("kind", "hero").eq("status", "published");
+  const ids = new Set(((data ?? []) as { hero_id: number }[]).map((g) => g.hero_id));
+  return heroes.filter((h) => ids.has(h.id));
+}
+
 export type BestScore = { score: number; total: number; at: string };
 
 /** Meilleur score de l'utilisateur par héros (slug), plus le meilleur score « mes héros ». Null si la table n'existe pas. */

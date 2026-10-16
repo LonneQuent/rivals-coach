@@ -17,8 +17,11 @@ export const requireSession = cache(async () => {
   return { supabase, user, profile, isCoach: !!(profile?.is_admin || profile?.is_coach) };
 });
 
-/** Référentiels. `all` inclut les entrées désactivées (pour l'admin). */
-export async function getRefs(all = false): Promise<Refs> {
+/**
+ * Référentiels. `all` inclut les entrées désactivées (pour l'admin).
+ * Mis en cache pour la durée d'un rendu : layout, page et composants qui l'appellent partagent les mêmes 6 requêtes.
+ */
+export const getRefs = cache(async (all: boolean = false): Promise<Refs> => {
   const { supabase } = await requireSession();
   const only = <T,>(q: PromiseLike<{ data: T[] | null }>) => q.then((r) => r.data ?? []);
   const active = (q: any) => (all ? q : q.eq("active", true));
@@ -37,4 +40,4 @@ export async function getRefs(all = false): Promise<Refs> {
     only<ErrorTag>(active(supabase.from("error_tags").select("*")).order("sort")),
   ]);
   return { heroes, gameModes, maps, queues, ranks, tags };
-}
+});

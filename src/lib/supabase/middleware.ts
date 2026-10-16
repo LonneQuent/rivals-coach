@@ -19,11 +19,12 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  // Ne rien exécuter entre la création du client et getUser() : c'est lui qui rafraîchit la session.
-  const { data } = await supabase.auth.getUser();
+  // Ne rien exécuter entre la création du client et getClaims() : c'est lui qui rafraîchit la session.
+  // getClaims vérifie le jeton localement (clés de signature asymétriques) au lieu d'appeler le serveur Auth à chaque page.
+  const { data } = await supabase.auth.getClaims();
   const path = request.nextUrl.pathname;
 
-  if (!data.user && !PUBLIC_PATHS.some((p) => path.startsWith(p))) {
+  if (!data?.claims?.sub && !PUBLIC_PATHS.some((p) => path.startsWith(p))) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.search = path === "/" ? "" : `?next=${encodeURIComponent(path + request.nextUrl.search)}`;

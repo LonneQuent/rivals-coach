@@ -19,9 +19,17 @@ export async function createClient() {
   });
 }
 
-/** Utilisateur connecté (vérifié auprès de Supabase) ou null. */
-export async function getUser() {
+export type SessionUser = { id: string; email: string | null };
+
+/**
+ * Utilisateur connecté ou null.
+ * getClaims vérifie la signature du jeton en local (clés JWKS mises en cache) : pas d'aller-retour
+ * vers le serveur Auth à chaque rendu, contrairement à getUser. Avec l'ancienne clé secrète partagée,
+ * il retombe sur un appel réseau, d'où l'intérêt de passer aux « JWT Signing Keys » dans Supabase.
+ */
+export async function getUser(): Promise<{ supabase: Awaited<ReturnType<typeof createClient>>; user: SessionUser | null }> {
   const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
-  return { supabase, user: data.user };
+  const { data } = await supabase.auth.getClaims();
+  const c = data?.claims;
+  return { supabase, user: c?.sub ? { id: c.sub, email: typeof c.email === "string" ? c.email : null } : null };
 }

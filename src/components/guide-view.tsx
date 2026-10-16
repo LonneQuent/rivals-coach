@@ -6,7 +6,7 @@ import { ROLES, type Hero, type Role } from "@/lib/types";
 import { HeroMark } from "@/components/ui";
 import { SectionIcon } from "@/components/illustrations";
 import { GuideToc, ReadingProgress } from "@/components/guide-toc";
-import { TacticDiagram } from "@/components/diagrams";
+import { TacticDiagram, glyphOf, type DiagramCast } from "@/components/diagrams";
 import { Mascot } from "@/components/mascot";
 
 const ROLE_VAR: Record<Role, string> = { Vanguard: "var(--color-van)", Duelist: "var(--color-due)", Strategist: "var(--color-str)" };
@@ -56,6 +56,7 @@ export function GuideView({
   accent: accentOverride,
   labels,
   myRole,
+  self,
 }: {
   content: GuideContent;
   heroes: Hero[];
@@ -66,10 +67,18 @@ export function GuideView({
   labels?: { matchups?: string; counters?: string; synergies?: string };
   /** Rôle principal du joueur, mis en avant dans le placement par rôle. */
   myRole?: Role | null;
+  /** Héros de la fiche : son portrait remplace le pion « Toi » des schémas. */
+  self?: Hero | null;
 }) {
   const accent = accentOverride ?? ROLE_VAR[role];
   const L = { matchups: "Counters et alliés", counters: "Le contrent", synergies: "Ses meilleurs alliés", ...labels };
   const bySlug = new Map(heroes.map((h) => [h.slug, h]));
+  // Schémas : le héros de la fiche dans le pion « Toi », et son premier allié conseillé comme partenaire
+  const partner = content.synergies.map((x) => bySlug.get(x.hero)).find((h) => h && h.id !== self?.id);
+  const cast = {
+    me: self ? { name: self.name, src: self.portrait_url, role: glyphOf(role) } : null,
+    ally: self && partner ? { name: partner.name, src: partner.portrait_url, role: glyphOf(partner.roles[0]) } : null,
+  };
   const sections = content.sections.map((s, i) => ({ ...s, id: sectionAnchor(s.title, i) }));
   // Les combos en touches suivent la section « Combos » rédigée s'il y en a une,
   // sinon ils se lisent juste avant le bloc « À éviter » (ou à la fin)
@@ -170,7 +179,7 @@ export function GuideView({
           {sections.map((s, i) => (
             <Fragment key={s.id}>
               {i === combosAt ? <Combos combos={content.combos} accent={accent} /> : null}
-              <Section s={s} id={s.id} role={role} accent={accent} iconColor={accentOverride} first={i === 0} />
+              <Section s={s} id={s.id} role={role} accent={accent} iconColor={accentOverride} first={i === 0} cast={cast} />
             </Fragment>
           ))}
           {combosAt === sections.length ? <Combos combos={content.combos} accent={accent} /> : null}
@@ -213,7 +222,23 @@ export function GuideView({
   );
 }
 
-function Section({ s, id, role, accent, first, iconColor }: { s: GuideSection; id: string; role: Role; accent: string; first: boolean; iconColor?: string }) {
+function Section({
+  s,
+  id,
+  role,
+  accent,
+  first,
+  iconColor,
+  cast,
+}: {
+  s: GuideSection;
+  id: string;
+  role: Role;
+  accent: string;
+  first: boolean;
+  iconColor?: string;
+  cast: { me: DiagramCast | null; ally: DiagramCast | null };
+}) {
   if (s.kind === "mistakes") {
     return (
       <section id={id} className="scroll-mt-24 border-t border-line py-8">
@@ -267,7 +292,7 @@ function Section({ s, id, role, accent, first, iconColor }: { s: GuideSection; i
           <Rich text={s.lead} />
         </p>
       ) : null}
-      {s.diagram ? <TacticDiagram kind={s.diagram} className="mt-5" /> : null}
+      {s.diagram ? <TacticDiagram kind={s.diagram} className="mt-5" me={cast.me} ally={cast.ally} /> : null}
       {s.image ? (
         <figure className="mt-5 overflow-hidden rounded-xl border border-line bg-surface">
           {/* eslint-disable-next-line @next/next/no-img-element */}

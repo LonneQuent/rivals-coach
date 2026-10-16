@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Dices, Map as MapIcon, Star } from "lucide-react";
 import { getRefs, requireSession } from "@/lib/data";
 import { getPlayedHeroes } from "@/lib/comps-data";
-import { getBestScores, getQuizSources } from "@/lib/quiz-data";
+import { getBestScores, getGuideHeroes } from "@/lib/quiz-data";
 import { ROLES } from "@/lib/types";
 import { EmptyState, HeroMark, PageHeader, RoleDot } from "@/components/ui";
 import { MascotTip } from "@/components/mascot";
@@ -13,14 +13,14 @@ export const metadata: Metadata = { title: "Quiz des héros" };
 export default async function QuizHome() {
   const { supabase, user } = await requireSession();
   const { heroes } = await getRefs();
-  const [sources, best, played] = await Promise.all([
-    getQuizSources(supabase, heroes),
+  const [withGuides, best, played] = await Promise.all([
+    getGuideHeroes(supabase, heroes),
     getBestScores(supabase, user.id, heroes),
     getPlayedHeroes(supabase, user.id, new Map(heroes.map((h) => [h.id, h.slug]))),
   ]);
-  if (!sources.length) return <EmptyState title="Pas encore de quiz" body="Les quiz se construisent à partir des guides publiés : il en faut au moins un." />;
+  if (!withGuides.length) return <EmptyState title="Pas encore de quiz" body="Les quiz se construisent à partir des guides publiés : il en faut au moins un." />;
 
-  const withGuide = new Set(sources.map((s) => s.hero.slug));
+  const withGuide = new Set(withGuides.map((h) => h.slug));
   const mine = [...played.entries()].filter(([slug]) => withGuide.has(slug)).sort((a, b) => b[1] - a[1]).slice(0, 5);
   const fmt = (key: string) => {
     const b = best?.get(key);
@@ -77,10 +77,10 @@ export default async function QuizHome() {
               <RoleDot role={role} /> {role}
             </h2>
             <ul className="flex flex-col gap-1.5">
-              {sources
-                .filter((s) => s.hero.roles[0] === role)
-                .sort((a, b) => a.hero.name.localeCompare(b.hero.name, "fr"))
-                .map(({ hero }) => {
+              {withGuides
+                .filter((h) => h.roles[0] === role)
+                .sort((a, b) => a.name.localeCompare(b.name, "fr"))
+                .map((hero) => {
                   const b = best?.get(hero.slug);
                   const perfect = b && b.score === b.total;
                   return (

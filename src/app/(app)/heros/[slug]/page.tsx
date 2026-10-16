@@ -15,15 +15,19 @@ export default async function HeroPage({ params }: { params: Promise<{ slug: str
   const hero = heroes.find((h) => h.slug === slug) as Hero | undefined;
   if (!hero) notFound();
 
-  const [guideRes, mineRes] = await Promise.all([
+  // Tout part en parallèle : guide, mes parties, et stats de la meta à mon rang
+  const metaP = myBracket(supabase, user.id, profile?.rank_id, ranks).then(async (b) => {
+    const key = b ?? "gold";
+    return { bracket: key, meta: await getMeta(supabase, key) };
+  });
+  const [guideRes, mineRes, { bracket, meta }] = await Promise.all([
     supabase.from("guides").select("content, status").eq("kind", "hero").eq("hero_id", hero.id).maybeSingle(),
     supabase.from("match_heroes").select("matches!inner(result, user_id)").eq("hero_id", hero.id).eq("matches.user_id", user.id),
+    metaP,
   ]);
   const guide = guideRes.data as { content: unknown; status: "draft" | "published" } | null;
   const games = (mineRes.data ?? []) as unknown as { matches: { result: "win" | "loss" } }[];
   const wins = games.filter((g) => g.matches.result === "win").length;
-  const bracket = (await myBracket(supabase, user.id, profile?.rank_id, ranks)) ?? "gold";
-  const meta = await getMeta(supabase, bracket);
   const metaRows = (meta?.rows ?? []).filter((r) => r.hero_id === hero.id);
 
   return (
@@ -83,7 +87,7 @@ export default async function HeroPage({ params }: { params: Promise<{ slug: str
       {guide ? (
         <>
           {guide.status === "draft" ? <p className="rounded-lg bg-surface-3 px-3 py-2 text-sm text-fg-2">Brouillon : visible uniquement par les admins.</p> : null}
-          <GuideView content={parseContent(guide.content)} heroes={heroes} role={hero.roles[0]} />
+          <GuideView content={parseContent(guide.content)} heroes={heroes} role={hero.roles[0]} self={hero} />
         </>
       ) : (
         <div className="card flex flex-col gap-2">
