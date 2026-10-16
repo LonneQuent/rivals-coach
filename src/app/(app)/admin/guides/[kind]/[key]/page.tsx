@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getRefs, requireSession } from "@/lib/data";
 import { parseContent, roleFromSlug, roleSlug } from "@/lib/guides";
+import { GENERAL_GUIDES, mapShortName, mapSlug } from "@/lib/maps";
 import { EmptyState, PageHeader } from "@/components/ui";
 import { GuideEditor } from "./guide-editor";
 
@@ -12,10 +13,23 @@ export default async function EditGuidePage({ params }: { params: Promise<{ kind
   const { kind, key } = await params;
   const { supabase, profile } = await requireSession();
   if (!profile?.is_admin) return <EmptyState title="Réservé aux admins" body="Seuls les admins peuvent rédiger les guides." />;
-  const { heroes } = await getRefs(true);
+  const { heroes, maps } = await getRefs(true);
 
-  let target: { kind: "hero"; hero_id: number; label: string; viewHref: string } | { kind: "role"; role: NonNullable<ReturnType<typeof roleFromSlug>>; label: string; viewHref: string };
-  if (kind === "hero") {
+  type Role = NonNullable<ReturnType<typeof roleFromSlug>>;
+  let target:
+    | { kind: "hero"; hero_id: number; label: string; viewHref: string }
+    | { kind: "role"; role: Role; label: string; viewHref: string }
+    | { kind: "map"; map_id: number; label: string; viewHref: string }
+    | { kind: "general"; slug: string; label: string; viewHref: string };
+  if (kind === "map") {
+    const m = maps.find((x) => mapSlug(x.name) === key);
+    if (!m) notFound();
+    target = { kind: "map", map_id: m.id, label: mapShortName(m.name), viewHref: `/cartes/${key}` };
+  } else if (kind === "general") {
+    const g = GENERAL_GUIDES.find((x) => x.slug === key);
+    if (!g) notFound();
+    target = { kind: "general", slug: g.slug, label: g.title, viewHref: `/guides/${g.slug}` };
+  } else if (kind === "hero") {
     const h = heroes.find((x) => x.slug === key);
     if (!h) notFound();
     target = { kind: "hero", hero_id: h.id, label: h.name, viewHref: `/heros/${h.slug}` };
@@ -26,7 +40,15 @@ export default async function EditGuidePage({ params }: { params: Promise<{ kind
   } else notFound();
 
   const q = supabase.from("guides").select("content, status").eq("kind", target.kind);
-  const { data } = await (target.kind === "hero" ? q.eq("hero_id", target.hero_id) : q.eq("role", target.role)).maybeSingle();
+  const { data } = await (
+    target.kind === "hero"
+      ? q.eq("hero_id", target.hero_id)
+      : target.kind === "role"
+        ? q.eq("role", target.role)
+        : target.kind === "map"
+          ? q.eq("map_id", target.map_id)
+          : q.eq("slug", target.slug)
+  ).maybeSingle();
   const existing = data as { content: unknown; status: "draft" | "published" } | null;
 
   return (
@@ -44,7 +66,15 @@ export default async function EditGuidePage({ params }: { params: Promise<{ kind
         }
       />
       <GuideEditor
-        target={target.kind === "hero" ? { kind: "hero", hero_id: target.hero_id } : { kind: "role", role: target.role }}
+        target={
+          target.kind === "hero"
+            ? { kind: "hero", hero_id: target.hero_id }
+            : target.kind === "role"
+              ? { kind: "role", role: target.role }
+              : target.kind === "map"
+                ? { kind: "map", map_id: target.map_id }
+                : { kind: "general", slug: target.slug }
+        }
         initial={parseContent(existing?.content)}
         initialStatus={existing?.status ?? "draft"}
         heroes={heroes.map((h) => ({ slug: h.slug, name: h.name }))}

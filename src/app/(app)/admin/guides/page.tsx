@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getRefs, requireSession } from "@/lib/data";
 import { roleSlug } from "@/lib/guides";
+import { GENERAL_GUIDES, mapShortName, mapSlug } from "@/lib/maps";
 import { ROLES } from "@/lib/types";
 import { EmptyState, HeroMark, PageHeader, RoleDot } from "@/components/ui";
 
@@ -10,8 +11,10 @@ export const metadata: Metadata = { title: "Guides" };
 export default async function AdminGuidesPage() {
   const { supabase, profile } = await requireSession();
   if (!profile?.is_admin) return <EmptyState title="Réservé aux admins" body="Cette page sert à rédiger les guides des héros et des rôles." />;
-  const [{ heroes }, res] = await Promise.all([getRefs(true), supabase.from("guides").select("kind, hero_id, role, status, updated_at")]);
-  const rows = (res.data ?? []) as { kind: string; hero_id: number | null; role: string | null; status: "draft" | "published"; updated_at: string }[];
+  const [{ heroes, maps }, res] = await Promise.all([getRefs(true), supabase.from("guides").select("*")]);
+  const rows = (res.data ?? []) as { kind: string; hero_id: number | null; role: string | null; map_id?: number | null; slug?: string | null; status: "draft" | "published"; updated_at: string }[];
+  const mapStatus = new Map(rows.filter((r) => r.kind === "map").map((r) => [r.map_id, r.status]));
+  const generalStatus = new Map(rows.filter((r) => r.kind === "general").map((r) => [r.slug, r.status]));
   const heroStatus = new Map(rows.filter((r) => r.kind === "hero").map((r) => [r.hero_id, r.status]));
   const roleStatus = new Map(rows.filter((r) => r.kind === "role").map((r) => [r.role, r.status]));
 
@@ -38,6 +41,29 @@ export default async function AdminGuidesPage() {
             {badge(roleStatus.get(r))}
           </Link>
         ))}
+      </section>
+      <section className="flex flex-col gap-2">
+        <h2 className="text-lg uppercase tracking-wide">Guides généraux et cartes</h2>
+        <ul className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-4">
+          {GENERAL_GUIDES.map((g) => (
+            <li key={g.slug}>
+              <Link href={`/admin/guides/general/${g.slug}`} className="lift flex items-center gap-3 rounded-lg border border-line bg-surface px-3 py-2">
+                <span className="min-w-0 flex-1 truncate text-sm font-semibold">{g.title}</span>
+                {badge(generalStatus.get(g.slug))}
+              </Link>
+            </li>
+          ))}
+          {[...maps]
+            .sort((a, b) => mapShortName(a.name).localeCompare(mapShortName(b.name), "fr"))
+            .map((m) => (
+              <li key={m.id}>
+                <Link href={`/admin/guides/map/${mapSlug(m.name)}`} className="lift flex items-center gap-3 rounded-lg border border-line bg-surface px-3 py-2">
+                  <span className="min-w-0 flex-1 truncate text-sm font-semibold">{mapShortName(m.name)}</span>
+                  {badge(mapStatus.get(m.id))}
+                </Link>
+              </li>
+            ))}
+        </ul>
       </section>
       <div className="grid gap-6 lg:grid-cols-3">
         {ROLES.map((role) => (

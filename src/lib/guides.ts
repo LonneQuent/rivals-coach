@@ -74,6 +74,8 @@ const kit = z.object({
   health: z.string().trim().max(40).optional().default(""),
   abilities: z.array(kitAbility).max(16).default([]),
   teamups: z.array(kitTeamup).max(8).optional().default([]),
+  /** Changements d'équilibrage récents. */
+  changes: z.array(z.object({ season: z.string().trim().max(20), text: z.string().trim().min(1).max(300) })).max(12).optional().default([]),
   source: z.object({ title: z.string().max(120), url: z.string().url().or(z.literal("")) }).optional(),
 });
 
@@ -84,6 +86,8 @@ const combo = z.object({
 });
 
 export const guideContentSchema = z.object({
+  /** Titre affiché (guides généraux et cartes ; les guides de héros et de rôle ont le leur). */
+  title: z.string().trim().max(80).optional().default(""),
   summary: z.string().max(1000).default(""),
   patch_note: z.string().max(500).optional().default(""),
   /** Les 3 ou 4 choses à retenir, affichées en ouverture. */
@@ -117,7 +121,7 @@ export interface Guide {
   updated_at: string;
 }
 
-const EMPTY: GuideContent = { summary: "", patch_note: "", tldr: [], difficulty: 0, tags: [], sections: [], combos: [], counters: [], synergies: [], sources: [] };
+const EMPTY: GuideContent = { title: "", summary: "", patch_note: "", tldr: [], difficulty: 0, tags: [], sections: [], combos: [], counters: [], synergies: [], sources: [] };
 
 /**
  * Lit un contenu stocké en base sans jamais planter sur un champ manquant.

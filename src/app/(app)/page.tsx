@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Swords } from "lucide-react";
+import { Brain, GraduationCap, Map as MapIcon, Swords, UserRound } from "lucide-react";
 import { getRefs, requireSession } from "@/lib/data";
 import { ROLES } from "@/lib/types";
 import { roleSlug } from "@/lib/guides";
@@ -83,6 +83,23 @@ export default async function HomePage() {
           </div>
           <span aria-hidden className="text-muted">→</span>
         </Link>
+        {[
+          { href: "/cartes", title: "Cartes", blurb: "Chokes, high grounds et routes", Icon: MapIcon },
+          { href: "/guides/game-sense", title: "Game sense", blurb: "Lire la partie comme un pro", Icon: Brain },
+          { href: "/guides/solo-queue", title: "Solo queue", blurb: "Monter seul sans tilter", Icon: UserRound },
+          { href: "/quiz", title: "Quiz", blurb: "Connais-tu tes héros ?", Icon: GraduationCap },
+        ].map(({ href, title, blurb, Icon }) => (
+          <Link key={href} href={href} className="card lift flex items-center gap-3 py-3">
+            <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-accent/15 text-accent" aria-hidden>
+              <Icon className="size-6" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="font-display text-lg font-bold uppercase tracking-wide">{title}</p>
+              <p className="text-xs text-muted">{blurb}</p>
+            </div>
+            <span aria-hidden className="text-muted">→</span>
+          </Link>
+        ))}
       </section>
 
       <div className="grid gap-6 lg:grid-cols-3">

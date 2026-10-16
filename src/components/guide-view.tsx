@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Fragment } from "react";
-import { AlertTriangle, Check, ChevronRight, ExternalLink, Lightbulb, X } from "lucide-react";
-import { sectionAnchor, type GuideCombo, type GuideContent, type GuideSection } from "@/lib/guides";
+import { AlertTriangle, Check, ChevronRight, ExternalLink, History, Lightbulb, Link2, X } from "lucide-react";
+import { sectionAnchor, type GuideCombo, type GuideContent, type GuideKit, type GuideSection } from "@/lib/guides";
 import type { Hero, Role } from "@/lib/types";
 import { HeroMark } from "@/components/ui";
 import { SectionIcon } from "@/components/illustrations";
@@ -49,8 +49,23 @@ function Keycap({ label, big = false }: { label: string; big?: boolean }) {
  * Guide en page de lecture : bandeau « En bref », sommaire latéral collant, sections aérées
  * (séparateurs plutôt que boîtes), bloc « À éviter », cartes counters et alliés, sources.
  */
-export function GuideView({ content, heroes, role }: { content: GuideContent; heroes: Hero[]; role: Role }) {
-  const accent = ROLE_VAR[role];
+export function GuideView({
+  content,
+  heroes,
+  role,
+  accent: accentOverride,
+  labels,
+}: {
+  content: GuideContent;
+  heroes: Hero[];
+  role: Role;
+  /** Couleur d'accent à la place de celle du rôle (cartes, guides généraux). */
+  accent?: string;
+  /** Titres de la partie counters/alliés (une carte parle plutôt de « héros forts ici »). */
+  labels?: { matchups?: string; counters?: string; synergies?: string };
+}) {
+  const accent = accentOverride ?? ROLE_VAR[role];
+  const L = { matchups: "Counters et alliés", counters: "Le contrent", synergies: "Ses meilleurs alliés", ...labels };
   const bySlug = new Map(heroes.map((h) => [h.slug, h]));
   const sections = content.sections.map((s, i) => ({ ...s, id: sectionAnchor(s.title, i) }));
   // Les combos en touches suivent la section « Combos » rédigée s'il y en a une,
@@ -62,7 +77,8 @@ export function GuideView({ content, heroes, role }: { content: GuideContent; he
   const toc = [
     ...sections.flatMap((s, i) => [...(i === combosAt ? [combosToc] : []), { id: s.id, label: s.kind === "mistakes" ? "À éviter" : s.title }]),
     ...(combosAt === sections.length ? [combosToc] : []),
-    ...(content.counters.length || content.synergies.length ? [{ id: "matchups", label: "Counters et alliés" }] : []),
+    ...(content.kit ? [{ id: "kit", label: content.kit.abilities.length ? "Kit et team-ups" : "Team-ups et équilibrage" }] : []),
+    ...(content.counters.length || content.synergies.length ? [{ id: "matchups", label: L.matchups }] : []),
   ];
 
   return (
@@ -133,6 +149,15 @@ export function GuideView({ content, heroes, role }: { content: GuideContent; he
         </p>
       ) : null}
 
+      {content.kit?.changes.length ? (
+        <a href="#kit" className="flex max-w-[75ch] items-start gap-2 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg-2 hover:border-accent/60">
+          <History className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden />
+          <span>
+            <strong className="text-fg">{content.kit.changes.length} changement{content.kit.changes.length > 1 ? "s" : ""} récent{content.kit.changes.length > 1 ? "s" : ""}</strong> ({[...new Set(content.kit.changes.map((c) => c.season))].join(", ")}) : voir le kit à jour →
+          </span>
+        </a>
+      ) : null}
+
       {/* Corps : sommaire + lecture */}
       <div className="grid gap-8 lg:grid-cols-[200px_minmax(0,1fr)]">
         <GuideToc items={toc} accent={accent} />
@@ -140,17 +165,19 @@ export function GuideView({ content, heroes, role }: { content: GuideContent; he
           {sections.map((s, i) => (
             <Fragment key={s.id}>
               {i === combosAt ? <Combos combos={content.combos} accent={accent} /> : null}
-              <Section s={s} id={s.id} role={role} accent={accent} first={i === 0} />
+              <Section s={s} id={s.id} role={role} accent={accent} iconColor={accentOverride} first={i === 0} />
             </Fragment>
           ))}
           {combosAt === sections.length ? <Combos combos={content.combos} accent={accent} /> : null}
 
+          {content.kit ? <Kit kit={content.kit} bySlug={bySlug} accent={accent} /> : null}
+
           {content.counters.length || content.synergies.length ? (
             <section id="matchups" className="scroll-mt-24 border-t border-line pt-8">
-              <h2 className="text-2xl uppercase tracking-wide">Counters et alliés</h2>
+              <h2 className="text-2xl uppercase tracking-wide">{L.matchups}</h2>
               <div className="mt-5 grid gap-6 md:grid-cols-2">
-                {content.counters.length ? <Matchups title="Le contrent" tone="bad" items={content.counters} bySlug={bySlug} /> : null}
-                {content.synergies.length ? <Matchups title="Ses meilleurs alliés" tone="good" items={content.synergies} bySlug={bySlug} /> : null}
+                {content.counters.length ? <Matchups title={L.counters} tone="bad" items={content.counters} bySlug={bySlug} /> : null}
+                {content.synergies.length ? <Matchups title={L.synergies} tone="good" items={content.synergies} bySlug={bySlug} /> : null}
               </div>
             </section>
           ) : null}
@@ -167,12 +194,12 @@ export function GuideView({ content, heroes, role }: { content: GuideContent; he
                       </a>
                     ) : (
                       <span className="font-semibold text-fg-2">{s.title}</span>
-                    )}{" "}
-                    · {s.author}
+                    )}
+                    {s.author ? ` · ${s.author}` : null}
                   </li>
                 ))}
               </ul>
-              <p className="mt-2 text-xs">Conseils reformulés en français à partir de ces vidéos.</p>
+              <p className="mt-2 text-xs">Conseils reformulés en français à partir de ces vidéos, puis vérifiés contre les patch notes récentes quand c'était possible.</p>
             </footer>
           ) : null}
         </article>
@@ -181,7 +208,7 @@ export function GuideView({ content, heroes, role }: { content: GuideContent; he
   );
 }
 
-function Section({ s, id, role, accent, first }: { s: GuideSection; id: string; role: Role; accent: string; first: boolean }) {
+function Section({ s, id, role, accent, first, iconColor }: { s: GuideSection; id: string; role: Role; accent: string; first: boolean; iconColor?: string }) {
   if (s.kind === "mistakes") {
     return (
       <section id={id} className="scroll-mt-24 border-t border-line py-8">
@@ -218,7 +245,7 @@ function Section({ s, id, role, accent, first }: { s: GuideSection; id: string; 
             <img src={s.icon} alt="" loading="lazy" className="size-8 object-contain" />
           </span>
         ) : (
-          <SectionIcon title={s.title} role={role} className="mt-1" />
+          <SectionIcon title={s.title} role={role} className="mt-1" color={iconColor} />
         )}
         <div className="min-w-0">
           <h2 className="text-2xl uppercase tracking-wide">{s.title}</h2>
@@ -257,6 +284,113 @@ function Section({ s, id, role, accent, first }: { s: GuideSection; id: string; 
             ))}
           </ul>
         </div>
+      ) : null}
+    </section>
+  );
+}
+
+const ABILITY_KIND: Record<string, string> = { primary: "Tir principal", secondary: "Tir secondaire", ability: "Capacité", ultimate: "Ultime", passive: "Passif", melee: "Mêlée" };
+
+/** Fiche de kit : capacités, team-ups de la saison et derniers changements d'équilibrage. */
+function Kit({ kit, bySlug, accent }: { kit: GuideKit; bySlug: Map<string, Hero>; accent: string }) {
+  return (
+    <section id="kit" className="scroll-mt-24 border-t border-line py-8">
+      <h2 className="flex flex-wrap items-baseline gap-x-3 text-2xl uppercase tracking-wide">
+        {kit.abilities.length ? "Kit et team-ups" : "Team-ups et équilibrage"}
+        {kit.season ? <span className="font-sans text-sm font-semibold normal-case tracking-normal text-accent">{kit.season}</span> : null}
+      </h2>
+      {kit.health ? <p className="mt-1 text-sm text-muted">Vie : {kit.health}</p> : null}
+
+      {kit.abilities.length ? (
+        <ul className="mt-5 grid gap-2 sm:grid-cols-2">
+          {kit.abilities.map((a, i) => (
+            <li key={i} className="flex gap-3 rounded-xl border border-line bg-surface p-3">
+              <div className="w-16 shrink-0 pt-0.5">{a.key ? <Keycap label={a.key} /> : <span className="text-[11px] font-semibold text-muted">{ABILITY_KIND[a.kind]}</span>}</div>
+              <div className="min-w-0">
+                <p className="font-semibold text-fg">{a.name}</p>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">{ABILITY_KIND[a.kind]}</p>
+                {a.text ? (
+                  <p className="mt-1 text-sm text-fg-2">
+                    <Rich text={a.text} />
+                  </p>
+                ) : null}
+                {a.stats.length ? (
+                  <p className="mt-2 flex flex-wrap gap-1.5">
+                    {a.stats.map((st, j) => (
+                      <span key={j} className="rounded-md bg-surface-3 px-2 py-0.5 text-xs text-fg-2">
+                        {st.label} <strong className="text-fg tabular">{st.value}</strong>
+                      </span>
+                    ))}
+                  </p>
+                ) : null}
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      {kit.teamups.length ? (
+        <div className="mt-6">
+          <p className="eyebrow mb-2 flex items-center gap-1.5">
+            <Link2 className="size-3.5" aria-hidden /> Team-ups de la saison
+          </p>
+          <ul className="grid gap-2 md:grid-cols-2">
+            {kit.teamups.map((t, i) => (
+              <li key={i} className="flex gap-3 rounded-xl border border-line bg-surface p-3" style={{ borderLeft: `3px solid ${accent}` }}>
+                <span className="flex shrink-0 -space-x-2">
+                  {t.partners.map((p) => {
+                    const h = bySlug.get(p);
+                    return h ? (
+                      <Link key={p} href={`/heros/${h.slug}`} title={h.name}>
+                        <HeroMark name={h.name} role={h.roles[0]} src={h.portrait_url} />
+                      </Link>
+                    ) : null;
+                  })}
+                </span>
+                <div className="min-w-0">
+                  <p className="font-semibold text-fg">
+                    {t.name}
+                    <span className="font-normal text-muted"> · avec {t.partners.map((p) => bySlug.get(p)?.name ?? p).join(", ")}</span>
+                  </p>
+                  {t.text ? (
+                    <p className="mt-0.5 text-sm text-fg-2">
+                      <Rich text={t.text} />
+                    </p>
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {kit.changes.length ? (
+        <div className="mt-6">
+          <p className="eyebrow mb-2 flex items-center gap-1.5">
+            <History className="size-3.5" aria-hidden /> Ce qui a changé récemment
+          </p>
+          <ul className="flex flex-col gap-1.5">
+            {kit.changes.map((c, i) => (
+              <li key={i} className="flex items-start gap-2 text-sm text-fg-2">
+                <span className="mt-0.5 shrink-0 rounded-full bg-accent/15 px-2 py-0.5 text-[11px] font-semibold text-accent">{c.season}</span>
+                <span>{c.text}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {kit.source ? (
+        <p className="mt-4 text-xs text-muted">
+          Source :{" "}
+          {kit.source.url ? (
+            <a href={kit.source.url} target="_blank" rel="noreferrer" className="underline hover:text-fg">
+              {kit.source.title}
+            </a>
+          ) : (
+            kit.source.title
+          )}
+        </p>
       ) : null}
     </section>
   );

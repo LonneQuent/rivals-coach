@@ -133,21 +133,21 @@ const SECTION_ICONS: [RegExp, LucideIcon][] = [
   [/soin|heal|choisir qui/i, HeartPulse],
   [/d[ée]g[âa]ts|damage|plus que soigner/i, Crosshair],
   [/survie|rester en vie|d[ée]placement/i, ShieldCheck],
-  [/plac/i, MapPin],
+  [/plac|zone|point|carte|manche|convoi|t[ée]l[ée]porteur|portail/i, MapPin],
   [/ult/i, Sparkles],
   [/suivre|track/i, Eye],
   [/erreur/i, AlertTriangle],
   [/synerg|[ée]quipe/i, Users],
   [/mobilit|mouvement/i, Wind],
-  [/combat|fight|duel/i, Swords],
+  [/combat|fight|duel|attaquer|d[ée]fendre|pousser/i, Swords],
   [/counter|contre/i, Shield],
   [/cible/i, Target],
 ];
 
 /** Icône déduite du titre de la section (« Ultime… » → étincelles, « Erreurs… » → alerte, etc.). */
-export function SectionIcon({ title, role, className }: { title: string; role: Role; className?: string }) {
+export function SectionIcon({ title, role, className, color }: { title: string; role: Role; className?: string; color?: string }) {
   const Icon = SECTION_ICONS.find(([re]) => re.test(title))?.[1] ?? BookOpen;
-  const c = ROLE_VAR[role];
+  const c = color ?? ROLE_VAR[role];
   return (
     <span
       aria-hidden

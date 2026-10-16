@@ -5,11 +5,41 @@ import { parseContent, roleFromSlug, roleSlug } from "@/lib/guides";
 import { GuideView } from "@/components/guide-view";
 import { HeroMark, buttonClass } from "@/components/ui";
 import { GuideBanner } from "@/components/illustrations";
+import { TopicBanner } from "@/components/topic-banner";
+import { GENERAL_GUIDES } from "@/lib/maps";
+
+async function GeneralGuidePage({ slug }: { slug: string }) {
+  const meta = GENERAL_GUIDES.find((g) => g.slug === slug);
+  if (!meta) notFound();
+  const { supabase, profile } = await requireSession();
+  const [{ heroes }, { data }] = await Promise.all([getRefs(), supabase.from("guides").select("content, status").eq("kind", "general").eq("slug", slug).maybeSingle()]);
+  const guide = data as { content: unknown; status: "draft" | "published" } | null;
+  const content = guide ? parseContent(guide.content) : null;
+  return (
+    <>
+      <Link href="/" className="text-sm text-muted hover:text-fg">
+        ← Accueil
+      </Link>
+      <TopicBanner eyebrow="Guide général" title={content?.title || meta.title} subtitle={<p className="text-sm text-fg-2">{meta.blurb}</p>}>
+        {profile?.is_admin ? (
+          <Link href={`/admin/guides/general/${slug}`} className={buttonClass("default")}>
+            {guide ? "Modifier le guide" : "Créer le guide"}
+          </Link>
+        ) : null}
+      </TopicBanner>
+      {content ? (
+        <GuideView content={content} heroes={heroes} role="Strategist" accent="var(--color-accent)" labels={{ matchups: "Héros conseillés", synergies: "Héros conseillés" }} />
+      ) : (
+        <div className="card text-sm text-fg-2">Ce guide arrive bientôt.</div>
+      )}
+    </>
+  );
+}
 
 export default async function RoleGuidePage({ params }: { params: Promise<{ role: string }> }) {
   const { role: slug } = await params;
   const role = roleFromSlug(slug);
-  if (!role) notFound();
+  if (!role) return <GeneralGuidePage slug={slug} />;
   const { supabase, profile } = await requireSession();
   const [{ heroes }, guideRes, heroGuides] = await Promise.all([
     getRefs(),

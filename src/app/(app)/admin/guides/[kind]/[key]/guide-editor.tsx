@@ -10,7 +10,7 @@ import type { Role } from "@/lib/types";
 import { buttonClass } from "@/components/ui";
 import { saveGuide } from "../../actions";
 
-type Target = { kind: "hero"; hero_id: number } | { kind: "role"; role: Role };
+type Target = { kind: "hero"; hero_id: number } | { kind: "role"; role: Role } | { kind: "map"; map_id: number } | { kind: "general"; slug: string };
 type SectionDraft = {
   key: number;
   title: string;
@@ -51,6 +51,7 @@ export function GuideEditor({
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const nameOf = (slug: string) => heroes.find((h) => h.slug === slug)?.name ?? slug;
 
+  const [title, setTitle] = useState(initial.title ?? "");
   const [summary, setSummary] = useState(initial.summary);
   const [patchNote, setPatchNote] = useState(initial.patch_note ?? "");
   const [status, setStatus] = useState<GuideStatus>(initialStatus);
@@ -99,6 +100,9 @@ export function GuideEditor({
     const c = heroNotes(counters, "Counter");
     const s = heroNotes(synergies, "Synergie");
     const content: GuideContent = {
+      title: title.trim(),
+      // Le kit (capacités, team-ups, changements) est mis à jour par migration : on le conserve tel quel
+      ...(initial.kit ? { kit: initial.kit } : {}),
       summary: summary.trim(),
       patch_note: patchNote.trim(),
       tldr: lines(tldr).slice(0, 4),
@@ -143,6 +147,12 @@ export function GuideEditor({
   return (
     <div className="flex flex-col gap-5">
       <section className="card flex flex-col gap-4">
+        {target.kind === "general" || target.kind === "map" ? (
+          <label className="label" htmlFor="title">
+            Titre
+            <input id="title" className="field" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={80} />
+          </label>
+        ) : null}
         <label className="label" htmlFor="summary">
           Résumé (1 ou 2 phrases)
           <textarea id="summary" className="field min-h-20" value={summary} onChange={(e) => setSummary(e.target.value)} maxLength={1000} />
