@@ -25,6 +25,64 @@ export type DiagramKind = (typeof DIAGRAMS)[number];
 
 const imageUrl = z.string().trim().max(500).regex(/^https:\/\//, "Lien https attendu");
 
+/*
+ * Schéma tactique propre à un guide (vue de dessus, repère 320 × 180, alliés à gauche).
+ * Il décrit une action précise du héros : qui se place où, quoi lancer, dans quel ordre.
+ * Les éléments qui portent un numéro `n` sont repris dans la liste d'étapes sous le dessin.
+ */
+const pt = z.tuple([z.number().min(-20).max(340), z.number().min(-20).max(200)]);
+const sceneTeam = z.enum(["me", "ally", "enemy"]);
+export const SCENE_PATHS = ["move", "shot", "beam", "heal", "sight", "pull", "push"] as const;
+const sceneEl = z.discriminatedUnion("t", [
+  /** Pion : rôle en icône, ou portrait si `hero` (slug) est renseigné. */
+  z.object({
+    t: z.literal("pawn"),
+    at: pt,
+    team: sceneTeam,
+    role: z.enum(["tank", "dps", "heal"]).optional(),
+    hero: z.string().max(60).optional(),
+    label: z.string().max(28).optional(),
+    /** Position de départ (contour pointillé). */
+    ghost: z.boolean().optional(),
+    small: z.boolean().optional(),
+    /** Cible éliminée. */
+    ko: z.boolean().optional(),
+    /** Étiquette au-dessus du pion plutôt qu'en dessous. */
+    above: z.boolean().optional(),
+  }),
+  /** Trajet ou action : 2 points = droite, 3 = courbe (point de contrôle au milieu), 4 = courbe en S. */
+  z.object({
+    t: z.literal("path"),
+    kind: z.enum(SCENE_PATHS),
+    team: sceneTeam,
+    pts: z.array(pt).min(2).max(4),
+    n: z.number().int().min(1).max(6).optional(),
+  }),
+  /** Zone d'effet circulaire (ult, soin de zone, piège). */
+  z.object({ t: z.literal("zone"), at: pt, r: z.number().min(4).max(90), team: sceneTeam, label: z.string().max(28).optional(), n: z.number().int().min(1).max(6).optional() }),
+  /** Cône (attaque de mêlée large, souffle, rayon évasé). */
+  z.object({ t: z.literal("cone"), at: pt, to: pt, spread: z.number().min(8).max(140), team: sceneTeam, n: z.number().int().min(1).max(6).optional() }),
+  /** Décor : mur, pilier, couvert. */
+  z.object({ t: z.literal("cover"), at: pt, size: pt, label: z.string().max(24).optional() }),
+  /** Zone nommée : hauteur, point, couloir. */
+  z.object({ t: z.literal("area"), at: pt, size: pt, label: z.string().max(24), team: sceneTeam.optional() }),
+  /** Barrière posée par une capacité : bouclier, mur, portail. */
+  z.object({ t: z.literal("bar"), from: pt, to: pt, team: sceneTeam, label: z.string().max(24).optional(), n: z.number().int().min(1).max(6).optional() }),
+  /** Objet au sol : tourelle, piège, objectif. */
+  z.object({ t: z.literal("mark"), at: pt, kind: z.enum(["turret", "trap", "objective", "clone"]), team: sceneTeam.optional(), label: z.string().max(24).optional() }),
+  /** Annotation libre. */
+  z.object({ t: z.literal("note"), at: pt, text: z.string().max(34), team: sceneTeam.optional() }),
+]);
+export const sceneSchema = z.object({
+  title: z.string().trim().min(1).max(60),
+  caption: z.string().trim().max(240).default(""),
+  /** Étapes numérotées, dans l'ordre : l'étape 1 décrit les éléments `n: 1`, etc. */
+  steps: z.array(z.string().trim().min(1).max(140)).max(5).optional().default([]),
+  els: z.array(sceneEl).min(1).max(48),
+});
+export type TacticScene = z.infer<typeof sceneSchema>;
+export type SceneEl = TacticScene["els"][number];
+
 const section = z.object({
   title: z.string().trim().min(1).max(80),
   /** Phrase d'introduction, affichée en plus gros avant la liste. */
@@ -40,8 +98,10 @@ const section = z.object({
   icon: imageUrl.optional().or(z.literal("")).default(""),
   /** Capture d'écran ou schéma envoyé par un admin. */
   image: z.object({ url: imageUrl, caption: z.string().trim().max(160).default("") }).optional(),
-  /** Schéma tactique dessiné par l'app. */
+  /** Schéma tactique générique dessiné par l'app. */
   diagram: z.enum(DIAGRAMS).optional().or(z.literal("")).default(""),
+  /** Schéma propre à ce guide : il remplace le schéma générique quand il est renseigné. */
+  scene: sceneSchema.optional(),
 });
 
 const comboStep = z.object({
@@ -69,7 +129,7 @@ const kitTeamup = z.object({
   text: z.string().trim().max(320).optional().default(""),
 });
 const kit = z.object({
-  /** Saison ou version des chiffres (« Saison 10.5 »). */
+  /** Saison ou version des chiffres (« Saison 11 »). */
   season: z.string().trim().max(40).default(""),
   health: z.string().trim().max(40).optional().default(""),
   abilities: z.array(kitAbility).max(16).default([]),
@@ -96,6 +156,15 @@ export const guideContentSchema = z.object({
   difficulty: z.number().int().min(0).max(3).optional().default(0),
   /** Style de jeu en quelques mots (« Flanc », « Pression backline »). */
   tags: z.array(z.string().trim().min(1).max(30)).max(5).optional().default([]),
+  /** Ce que le héros fait mieux que les autres, et ce qui le met en difficulté (phrases courtes). */
+  strengths: z.array(z.string().trim().min(1).max(120)).max(4).optional().default([]),
+  weaknesses: z.array(z.string().trim().min(1).max(120)).max(4).optional().default([]),
+  /** Réflexes : « dans telle situation » → « fais ceci ». Le savoir-faire propre au héros, à connaître par cœur. */
+  playbook: z
+    .array(z.object({ when: z.string().trim().min(1).max(140), then: z.string().trim().min(1).max(300) }))
+    .max(8)
+    .optional()
+    .default([]),
   sections: z.array(section).max(12).default([]),
   /** Enchaînements de touches, affichés en bandeau. */
   combos: z.array(combo).max(6).optional().default([]),
@@ -129,7 +198,7 @@ export interface Guide {
   updated_at: string;
 }
 
-const EMPTY: GuideContent = { title: "", summary: "", patch_note: "", tldr: [], difficulty: 0, tags: [], sections: [], combos: [], counters: [], synergies: [], sources: [] };
+const EMPTY: GuideContent = { title: "", summary: "", patch_note: "", tldr: [], difficulty: 0, tags: [], strengths: [], weaknesses: [], playbook: [], sections: [], combos: [], counters: [], synergies: [], sources: [] };
 
 /**
  * Lit un contenu stocké en base sans jamais planter sur un champ manquant.

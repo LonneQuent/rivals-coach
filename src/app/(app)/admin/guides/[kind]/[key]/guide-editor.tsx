@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Plus, Trash2 } from "lucide-react";
-import { DIAGRAMS, SECTION_KINDS, formatComboSteps, parseComboSteps, type DiagramKind, type GuideContent, type GuideStatus, type SectionKind } from "@/lib/guides";
+import { DIAGRAMS, SECTION_KINDS, formatComboSteps, parseComboSteps, type DiagramKind, type GuideContent, type GuideStatus, type SectionKind, type TacticScene } from "@/lib/guides";
 import { DIAGRAM_LABEL } from "@/components/diagrams";
 import { ImageField } from "./image-field";
 import type { Role } from "@/lib/types";
@@ -23,6 +23,8 @@ type SectionDraft = {
   imageUrl: string;
   imageCaption: string;
   diagram: DiagramKind | "";
+  /** Schéma propre au guide (livré par migration) : conservé tel quel, on peut seulement le retirer. */
+  scene?: TacticScene;
 };
 type ComboDraft = { key: number; title: string; steps: string; note: string };
 const KIND_LABEL: Record<SectionKind, string> = { default: "Liste classique", tips: "Astuces mises en avant", mistakes: "Bloc « À éviter »" };
@@ -58,6 +60,9 @@ export function GuideEditor({
   const [tldr, setTldr] = useState(initial.tldr.join("\n"));
   const [difficulty, setDifficulty] = useState(initial.difficulty);
   const [tags, setTags] = useState(initial.tags.join(", "));
+  const [strengths, setStrengths] = useState(initial.strengths.join("\n"));
+  const [weaknesses, setWeaknesses] = useState(initial.weaknesses.join("\n"));
+  const [playbook, setPlaybook] = useState(initial.playbook.map((p) => `${p.when} => ${p.then}`).join("\n"));
   const blankSection = (key = ++k): SectionDraft => ({ key, title: "", lead: "", ability: "", keycap: "", kind: "default", items: "", icon: "", imageUrl: "", imageCaption: "", diagram: "" });
   const [sections, setSections] = useState<SectionDraft[]>(() =>
     initial.sections.length
@@ -73,6 +78,7 @@ export function GuideEditor({
           imageUrl: s.image?.url ?? "",
           imageCaption: s.image?.caption ?? "",
           diagram: s.diagram,
+          scene: s.scene,
         }))
       : [blankSection(1)],
   );
@@ -113,8 +119,17 @@ export function GuideEditor({
       tldr: lines(tldr).slice(0, 4),
       difficulty,
       tags: tags.split(",").map((t) => t.trim()).filter(Boolean).slice(0, 5),
+      strengths: lines(strengths).slice(0, 4),
+      weaknesses: lines(weaknesses).slice(0, 4),
+      playbook: lines(playbook)
+        .map((l) => {
+          const [when, ...rest] = l.split("=>");
+          return { when: when.trim(), then: rest.join("=>").trim() };
+        })
+        .filter((x) => x.when && x.then)
+        .slice(0, 8),
       sections: sections
-        .filter((x) => x.title.trim() && (lines(x.items).length || x.imageUrl || x.diagram))
+        .filter((x) => x.title.trim() && (lines(x.items).length || x.imageUrl || x.diagram || x.scene))
         .map((x) => ({
           title: x.title.trim(),
           lead: x.lead.trim(),
@@ -124,6 +139,7 @@ export function GuideEditor({
           items: lines(x.items),
           icon: x.icon,
           diagram: x.diagram,
+          ...(x.scene ? { scene: x.scene } : {}),
           ...(x.imageUrl ? { image: { url: x.imageUrl, caption: x.imageCaption.trim() } } : {}),
         })),
       combos: combos
@@ -188,6 +204,24 @@ export function GuideEditor({
             <input id="tags" className="field" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="Flanc, Pression backline, Très mobile" />
           </label>
         </div>
+        {target.kind === "hero" || initial.strengths.length || initial.weaknesses.length || initial.playbook.length ? (
+          <>
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="label" htmlFor="strengths">
+                Points forts (un par ligne, 4 max)
+                <textarea id="strengths" className="field min-h-24" value={strengths} onChange={(e) => setStrengths(e.target.value)} placeholder="Charge son ult plus vite que les autres supports" />
+              </label>
+              <label className="label" htmlFor="weaknesses">
+                Points faibles (un par ligne, 4 max)
+                <textarea id="weaknesses" className="field min-h-24" value={weaknesses} onChange={(e) => setWeaknesses(e.target.value)} placeholder="Peu de mobilité : un dive bien mené la tue" />
+              </label>
+            </div>
+            <label className="label" htmlFor="playbook">
+              Réflexes à avoir (un par ligne : <code>Situation =&gt; Ce que tu fais</code>, 8 max)
+              <textarea id="playbook" className="field min-h-36" value={playbook} onChange={(e) => setPlaybook(e.target.value)} placeholder="Un diver te saute dessus => Saute pour devenir invisible, puis repousse-le quand il n'a plus de mobilité." />
+            </label>
+          </>
+        ) : null}
       </section>
 
       {sections.map((s, i) => (
@@ -234,12 +268,22 @@ export function GuideEditor({
             <textarea id={`si-${s.key}`} className="field min-h-32" value={s.items} onChange={(e) => patchSection(s.key, { items: e.target.value })} />
           </label>
           {s.kind !== "mistakes" ? (
-            <details className="rounded-lg border border-line px-3 py-2" open={!!(s.icon || s.imageUrl || s.diagram)}>
+            <details className="rounded-lg border border-line px-3 py-2" open={!!(s.icon || s.imageUrl || s.diagram || s.scene)}>
               <summary className="cursor-pointer text-sm font-semibold text-fg-2">Illustrations (icône, schéma, capture)</summary>
               <div className="mt-3 flex flex-col gap-4 pb-1">
                 <ImageField folder="icons" label="Icône de la capacité" value={s.icon} onChange={(url) => patchSection(s.key, { icon: url })} />
+                {s.scene ? (
+                  <p className="flex flex-wrap items-center gap-3 rounded-lg bg-surface-3 px-3 py-2 text-sm text-fg-2">
+                    <span className="min-w-0 flex-1">
+                      Schéma propre à ce guide : <strong className="text-fg">{s.scene.title}</strong>. Il est affiché à la place du schéma générique.
+                    </span>
+                    <button type="button" className={buttonClass("danger")} onClick={() => patchSection(s.key, { scene: undefined })}>
+                      Retirer
+                    </button>
+                  </p>
+                ) : null}
                 <label className="label" htmlFor={`sd-${s.key}`}>
-                  Schéma tactique dessiné par l&apos;app
+                  Schéma tactique générique
                   <select id={`sd-${s.key}`} className="field" value={s.diagram} onChange={(e) => patchSection(s.key, { diagram: e.target.value as DiagramKind | "" })}>
                     <option value="">Aucun</option>
                     {DIAGRAMS.map((d) => (

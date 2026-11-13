@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Fragment } from "react";
-import { AlertTriangle, Check, ChevronRight, ExternalLink, History, Lightbulb, Link2, X } from "lucide-react";
+import { AlertTriangle, ArrowRight, Check, ChevronRight, ExternalLink, History, Lightbulb, Link2, Minus, Plus, X } from "lucide-react";
 import { sectionAnchor, type GuideCombo, type GuideContent, type GuideKit, type GuideSection } from "@/lib/guides";
 import { ROLES, type Hero, type Role } from "@/lib/types";
 import { HeroMark } from "@/components/ui";
@@ -75,9 +75,11 @@ export function GuideView({
   const bySlug = new Map(heroes.map((h) => [h.slug, h]));
   // Schémas : le héros de la fiche dans le pion « Toi », et son premier allié conseillé comme partenaire
   const partner = content.synergies.map((x) => bySlug.get(x.hero)).find((h) => h && h.id !== self?.id);
-  const cast = {
+  const castOf = (h: Hero | null | undefined): DiagramCast | null => (h ? { name: h.name, src: h.portrait_url, role: glyphOf(h.roles[0]) } : null);
+  const cast: Cast = {
     me: self ? { name: self.name, src: self.portrait_url, role: glyphOf(role) } : null,
-    ally: self && partner ? { name: partner.name, src: partner.portrait_url, role: glyphOf(partner.roles[0]) } : null,
+    ally: self ? castOf(partner) : null,
+    heroOf: (slug) => castOf(bySlug.get(slug)),
   };
   const sections = content.sections.map((s, i) => ({ ...s, id: sectionAnchor(s.title, i) }));
   // Les combos en touches suivent la section « Combos » rédigée s'il y en a une,
@@ -87,18 +89,39 @@ export function GuideView({
   const combosAt = !content.combos.length ? -1 : textCombosAt !== -1 ? textCombosAt + 1 : mistakesAt === -1 ? sections.length : mistakesAt;
   const combosToc = { id: "combos", label: "Combos en touches" };
   const toc = [
+    ...(content.playbook.length ? [{ id: "reflexes", label: "Réflexes à avoir" }] : []),
     ...sections.flatMap((s, i) => [...(i === combosAt ? [combosToc] : []), { id: s.id, label: s.kind === "mistakes" ? "À éviter" : s.title }]),
     ...(combosAt === sections.length ? [combosToc] : []),
     ...(content.kit ? [{ id: "kit", label: content.kit.abilities.length ? "Kit et team-ups" : "Team-ups et équilibrage" }] : []),
     ...(content.counters.length || content.synergies.length ? [{ id: "matchups", label: L.matchups }] : []),
   ];
 
+  const hasHead = Boolean(content.summary || content.tldr.length);
+  const notices = (
+    <>
+      {content.patch_note ? (
+        <p className="flex max-w-[75ch] items-start gap-2 rounded-lg border border-accent/40 bg-accent/10 px-3 py-2 text-sm text-fg-2">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden />
+          {content.patch_note}
+        </p>
+      ) : null}
+      {content.kit?.changes.length ? (
+        <a href="#kit" className="flex max-w-[75ch] items-start gap-2 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg-2 hover:border-accent/60">
+          <History className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden />
+          <span>
+            <strong className="text-fg">{content.kit.changes.length} changement{content.kit.changes.length > 1 ? "s" : ""} récent{content.kit.changes.length > 1 ? "s" : ""}</strong> ({[...new Set(content.kit.changes.map((c) => c.season))].join(", ")}) : voir le kit à jour →
+          </span>
+        </a>
+      ) : null}
+    </>
+  );
+
   return (
     <div className="flex flex-col gap-8">
       <ReadingProgress accent={accent} />
 
       {/* En bref */}
-      {content.summary || content.tldr.length ? (
+      {hasHead ? (
         <section aria-labelledby="en-bref" className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
           <div className="flex flex-col gap-4">
             {content.summary ? <p className="max-w-[65ch] text-lg leading-relaxed text-fg-2">{content.summary}</p> : null}
@@ -121,8 +144,9 @@ export function GuideView({
                 </ol>
               </div>
             ) : null}
+            {notices}
           </div>
-          {content.difficulty || content.tags.length ? (
+          {content.difficulty || content.tags.length || content.strengths.length || content.weaknesses.length ? (
             <aside className="flex flex-col gap-4 rounded-xl border border-line bg-surface p-4">
               {content.difficulty ? (
                 <div>
@@ -149,28 +173,18 @@ export function GuideView({
                   </div>
                 </div>
               ) : null}
+              {content.strengths.length ? <ProsCons title="Points forts" tone="good" items={content.strengths} /> : null}
+              {content.weaknesses.length ? <ProsCons title="Points faibles" tone="bad" items={content.weaknesses} /> : null}
             </aside>
           ) : null}
         </section>
       ) : null}
 
-      {content.patch_note ? (
-        <p className="flex max-w-[75ch] items-start gap-2 rounded-lg border border-accent/40 bg-accent/10 px-3 py-2 text-sm text-fg-2">
-          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden />
-          {content.patch_note}
-        </p>
-      ) : null}
-
-      {content.kit?.changes.length ? (
-        <a href="#kit" className="flex max-w-[75ch] items-start gap-2 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg-2 hover:border-accent/60">
-          <History className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden />
-          <span>
-            <strong className="text-fg">{content.kit.changes.length} changement{content.kit.changes.length > 1 ? "s" : ""} récent{content.kit.changes.length > 1 ? "s" : ""}</strong> ({[...new Set(content.kit.changes.map((c) => c.season))].join(", ")}) : voir le kit à jour →
-          </span>
-        </a>
-      ) : null}
+      {hasHead ? null : notices}
 
       {content.roles && ROLES.some((r) => content.roles?.[r].length) ? <RolePlacement roles={content.roles} myRole={myRole ?? null} /> : null}
+
+      {content.playbook.length ? <Playbook items={content.playbook} accent={accent} /> : null}
 
       {/* Corps : sommaire + lecture */}
       <div className="grid gap-8 lg:grid-cols-[200px_minmax(0,1fr)]">
@@ -237,7 +251,7 @@ function Section({
   accent: string;
   first: boolean;
   iconColor?: string;
-  cast: { me: DiagramCast | null; ally: DiagramCast | null };
+  cast: Cast;
 }) {
   if (s.kind === "mistakes") {
     return (
@@ -292,7 +306,7 @@ function Section({
           <Rich text={s.lead} />
         </p>
       ) : null}
-      {s.diagram ? <TacticDiagram kind={s.diagram} className="mt-5" me={cast.me} ally={cast.ally} /> : null}
+      {s.scene || s.diagram ? <TacticDiagram kind={s.diagram} scene={s.scene} className="mt-5" me={cast.me} ally={cast.ally} heroOf={cast.heroOf} /> : null}
       {s.image ? (
         <figure className="mt-5 overflow-hidden rounded-xl border border-line bg-surface">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -315,6 +329,65 @@ function Section({
           </ul>
         </div>
       ) : null}
+    </section>
+  );
+}
+
+type Cast = { me: DiagramCast | null; ally: DiagramCast | null; heroOf: (slug: string) => DiagramCast | null };
+
+/** Points forts / points faibles, en liste courte dans l'encart du haut. */
+function ProsCons({ title, tone, items }: { title: string; tone: "good" | "bad"; items: string[] }) {
+  const Icon = tone === "good" ? Plus : Minus;
+  return (
+    <div>
+      <p className="eyebrow">{title}</p>
+      <ul className="mt-1.5 flex flex-col gap-1.5">
+        {items.map((it, i) => (
+          <li key={i} className="flex gap-2 text-sm leading-snug text-fg-2">
+            <Icon className={`mt-0.5 size-4 shrink-0 ${tone === "good" ? "text-good" : "text-bad"}`} aria-hidden />
+            <span>
+              <Rich text={it} />
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/**
+ * Réflexes : le savoir-faire propre au héros, sous forme « situation → réponse ».
+ * C'est la partie à connaître par cœur avant de lancer une partie.
+ */
+function Playbook({ items, accent }: { items: GuideContent["playbook"]; accent: string }) {
+  return (
+    <section id="reflexes" aria-labelledby="reflexes-title" className="scroll-mt-24">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h2 id="reflexes-title" className="text-2xl uppercase tracking-wide">
+          Réflexes à avoir
+        </h2>
+        <p className="text-sm text-muted">Ce qui se passe en jeu, et ce que tu fais.</p>
+      </div>
+      <ol className="mt-4 grid gap-2.5 md:grid-cols-2">
+        {items.map((it, i) => (
+          <li key={i} className="flex flex-col gap-2 rounded-xl border border-line bg-surface p-4" style={{ borderLeft: `3px solid ${accent}` }}>
+            <p className="flex items-start gap-2 text-[13px] font-semibold uppercase leading-snug tracking-wide text-muted">
+              <span className="tabular" style={{ color: accent }}>
+                {String(i + 1).padStart(2, "0")}
+              </span>
+              <span>
+                <Rich text={it.when} />
+              </span>
+            </p>
+            <p className="flex items-start gap-2 text-[15px] leading-relaxed text-fg-2">
+              <ArrowRight className="mt-1 size-4 shrink-0" style={{ color: accent }} aria-hidden />
+              <span>
+                <Rich text={it.then} />
+              </span>
+            </p>
+          </li>
+        ))}
+      </ol>
     </section>
   );
 }
