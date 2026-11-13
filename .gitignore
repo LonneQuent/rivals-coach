@@ -8,3 +8,6 @@ out
 next-env.d.ts
 .vercel
 .DS_Store
+
+# Moteur de lecture de captures, copié depuis node_modules (scripts/copy-ocr-assets.mjs)
+public/ocr

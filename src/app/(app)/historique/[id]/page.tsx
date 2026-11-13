@@ -7,6 +7,8 @@ import { getEnemyIds } from "@/lib/matches";
 import { mapShortName } from "@/lib/maps";
 import type { Role } from "@/lib/types";
 import { HeroMark, ResultPill, RoleBadge, buttonClass } from "@/components/ui";
+import { buildReview, type GuideLite, type ReviewHero, type RosterEntry } from "@/lib/review";
+import { MatchReview } from "@/components/match-review";
 import { DeleteMatchButton } from "../delete-button";
 import { MatchComments, type CommentView } from "./comments";
 
@@ -84,6 +86,31 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
   const [{ heroes: allHeroes }, enemyIds] = await Promise.all([getRefs(), getEnemyIds(supabase, m.id)]);
   const enemies = enemyIds.map((hid) => allHeroes.find((h) => h.id === hid)).filter((h) => h !== undefined);
   const date = new Date(m.played_at);
+
+  // Review : feuille de match (import de capture, migration 0017), guides et héros que le joueur sait jouer
+  const [extraRes, guidesRes, poolRes, playedRes] = await Promise.all([
+    supabase.from("matches").select("roster, source").eq("id", m.id).maybeSingle(),
+    supabase.from("guides").select("hero_id, counters:content->counters, synergies:content->synergies, teamups:content->kit->teamups").eq("kind", "hero"),
+    supabase.from("player_heroes").select("hero_id").eq("user_id", m.user_id),
+    supabase.from("matches").select("match_heroes(hero_id)").eq("user_id", m.user_id).order("played_at", { ascending: false }).limit(150),
+  ]);
+  const extra = extraRes.error ? null : (extraRes.data as { roster: RosterEntry[] | null; source: string } | null);
+  const roster = extra?.roster ?? [];
+  const heroOf = new Map(allHeroes.map((h) => [h.id, h]));
+  const guides = new Map<string, GuideLite>();
+  for (const g of (guidesRes.data ?? []) as unknown as { hero_id: number | null; counters: GuideLite["counters"] | null; synergies: GuideLite["synergies"] | null; teamups: GuideLite["teamups"] | null }[]) {
+    const slug = g.hero_id ? heroOf.get(g.hero_id)?.slug : undefined;
+    if (slug) guides.set(slug, { counters: g.counters ?? [], synergies: g.synergies ?? [], teamups: (g.teamups ?? []).map((t) => ({ ...t, partners: t.partners ?? [] })) });
+  }
+  const poolIds = new Set<number>(((poolRes.data ?? []) as { hero_id: number }[]).map((r) => r.hero_id));
+  for (const row of (playedRes.data ?? []) as { match_heroes: { hero_id: number }[] }[]) for (const h of row.match_heroes) poolIds.add(h.hero_id);
+  const pick = (ids: (number | null)[]): ReviewHero[] => [...new Set(ids)].map((hid) => (hid ? heroOf.get(hid) : undefined)).filter((h) => h !== undefined);
+  const allies = pick(roster.filter((r) => r.side === "ally" && !r.me).map((r) => r.hero_id));
+  const mineHeroes = heroes.flatMap((h) => {
+    const hero = h.hero ? allHeroes.find((x) => x.slug === h.hero!.slug) : undefined;
+    return hero ? [{ hero, role: h.role }] : [];
+  });
+  const review = buildReview({ mine: mineHeroes, allies, enemies, guides, pool: pick([...poolIds]), roster });
 
   const context: [string, string][] = [
     ["File", m.queue?.name ?? "–"],
@@ -241,6 +268,17 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
           ) : null}
         </section>
       </div>
+      {review && mineHeroes[0] ? (
+        <MatchReview review={review} hero={mineHeroes[0].hero} allies={allies} enemies={enemies} />
+      ) : mine ? (
+        <p className="card text-sm text-muted">
+          Pas encore de review pour cette partie : elle a besoin de la compo adverse.{" "}
+          <Link href="/saisir?mode=capture" className="font-semibold text-accent hover:underline">
+            Importe la capture du tableau des scores
+          </Link>{" "}
+          ou ajoute les héros adverses en modifiant la partie.
+        </p>
+      ) : null}
       <MatchComments
         matchId={m.id}
         comments={comments}

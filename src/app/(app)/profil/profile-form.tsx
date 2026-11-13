@@ -194,6 +194,24 @@ function ProfileForm({
           <input type="checkbox" className="mt-1 size-4 accent-[var(--color-accent)]" checked={form.share_aggregates} onChange={(e) => setForm({ ...form, share_aggregates: e.target.checked })} />
           <span>Contribuer aux stats du groupe. Seuls des totaux anonymes sont partagés, tes parties restent privées.</span>
         </label>
+        {form.accept_shared_imports !== undefined ? (
+          <>
+            <label className="flex items-start gap-3 text-sm text-fg-2 sm:col-span-2">
+              <input
+                type="checkbox"
+                className="mt-1 size-4 accent-[var(--color-accent)]"
+                checked={form.accept_shared_imports}
+                onChange={(e) => setForm({ ...form, accept_shared_imports: e.target.checked })}
+              />
+              <span>Quand un coéquipier importe une capture d&apos;une partie jouée ensemble, l&apos;ajouter aussi à mon historique. Tu peux toujours la modifier ou la supprimer.</span>
+            </label>
+            <label className="label sm:col-span-2" htmlFor="ingame-name">
+              Pseudo exact affiché sur le tableau des scores
+              <input id="ingame-name" className="field" maxLength={40} value={form.ingame_name ?? ""} onChange={(e) => setForm({ ...form, ingame_name: e.target.value })} />
+              <span className="text-xs font-normal text-muted">Sert à te reconnaître sur les captures de tes coéquipiers. Rempli tout seul à ton premier import ; à corriger seulement s&apos;il est différent du pseudo ci-dessus.</span>
+            </label>
+          </>
+        ) : null}
       </section>
 
       <HeroPicker title="Mes mains" hint="Les héros que tu joues le plus" heroes={heroes} selected={form.mains} onToggle={(id) => toggle("mains", id)} />

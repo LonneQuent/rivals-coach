@@ -29,6 +29,9 @@ export default async function ProfilPage() {
     supabase.from("coach_links").select("coach_id").eq("player_id", user.id),
     supabase.from("coach_notes").select("id, body, created_at, coach:profiles!coach_notes_coach_id_fkey(pseudo)").eq("player_id", user.id).order("created_at", { ascending: false }).limit(20),
   ]);
+  // Réglages de l'import de captures : la lecture échoue tant que la migration 0017 n'est pas passée
+  const captureRes = await supabase.from("profiles").select("ingame_name, accept_shared_imports").eq("id", user.id).maybeSingle();
+  const capture = captureRes.error ? null : (captureRes.data as { ingame_name: string | null; accept_shared_imports: boolean } | null);
   const linked = new Set(((linksRes.data ?? []) as { coach_id: string }[]).map((l) => l.coach_id));
   const coaches: CoachOption[] = ((coachesRes.data ?? []) as { id: string; pseudo: string | null; avatar_url: string | null }[]).map((c) => ({
     id: c.id,
@@ -78,6 +81,7 @@ export default async function ProfilPage() {
           rank_id: profile?.rank_id ?? null,
           mains: rows.filter((r) => r.kind === "main").map((r) => r.hero_id),
           train: rows.filter((r) => r.kind === "train").map((r) => r.hero_id),
+          ...(capture ? { ingame_name: capture.ingame_name ?? "", accept_shared_imports: capture.accept_shared_imports } : {}),
         }}
       />
       {notes.length ? (

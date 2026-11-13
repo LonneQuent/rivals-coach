@@ -12,6 +12,9 @@ const schema = z.object({
   rank_id: z.number().int().positive().nullable().optional(),
   mains: z.array(z.number().int()).max(10),
   train: z.array(z.number().int()).max(10),
+  // Import de captures (migration 0017) : absents tant qu'elle n'est pas passée
+  ingame_name: z.string().trim().max(40, "40 caractères maximum.").optional(),
+  accept_shared_imports: z.boolean().optional(),
 });
 
 export type ProfileInput = z.infer<typeof schema>;
@@ -29,6 +32,10 @@ export async function saveProfile(input: ProfileInput): Promise<{ ok: boolean; e
   // rank_id arrive avec la migration 0014 : sans elle, on enregistre le reste
   if (error) ({ error } = await supabase.from("profiles").update({ pseudo, main_role, share_aggregates }).eq("id", uid));
   if (error) return { ok: false, error: "Le profil n'a pas pu être enregistré." };
+  const { ingame_name, accept_shared_imports } = parsed.data;
+  if (ingame_name !== undefined && accept_shared_imports !== undefined) {
+    await supabase.from("profiles").update({ ingame_name: ingame_name || null, accept_shared_imports }).eq("id", uid);
+  }
 
   const { error: delErr } = await supabase.from("player_heroes").delete().eq("user_id", uid);
   if (delErr) return { ok: false, error: "Les héros n'ont pas pu être enregistrés." };
