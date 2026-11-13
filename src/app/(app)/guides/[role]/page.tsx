@@ -17,8 +17,8 @@ async function GeneralGuidePage({ slug }: { slug: string }) {
   const content = guide ? parseContent(guide.content) : null;
   return (
     <>
-      <Link href="/" className="text-sm text-muted hover:text-fg">
-        ← Accueil
+      <Link href="/guides" className="text-sm text-muted hover:text-fg">
+        ← Guides
       </Link>
       <TopicBanner eyebrow="Guide général" title={content?.title || meta.title} subtitle={<p className="text-sm text-fg-2">{meta.blurb}</p>}>
         {profile?.is_admin ? (
@@ -52,8 +52,8 @@ export default async function RoleGuidePage({ params }: { params: Promise<{ role
 
   return (
     <>
-      <Link href="/" className="text-sm text-muted hover:text-fg">
-        ← Accueil
+      <Link href="/guides" className="text-sm text-muted hover:text-fg">
+        ← Guides
       </Link>
       <GuideBanner role={role} eyebrow="Guide du rôle" title={`Jouer ${role}`} subtitle={<p className="text-sm text-fg-2">{roleHeroes.length} héros dans ce rôle</p>}>
         {profile?.is_admin ? (

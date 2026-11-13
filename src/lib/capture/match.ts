@@ -3,6 +3,8 @@
  * Fonctions pures, sans accès au navigateur : utilisables côté client comme côté serveur.
  */
 
+import type { Role } from "@/lib/types";
+
 export type Fingerprint = { id?: number; kind: "banner" | "avatar"; hero_id: number; fp: string };
 
 /** Écart moyen par composante (0 = identique, 255 = opposé). */
@@ -134,4 +136,32 @@ export function matchMap<T extends { id: number; name: string }>(label: string, 
   for (const m of maps) consider(mapKey(m.name), m.id);
   const found = best as { id: number; d: number } | null;
   return found ? (maps.find((m) => m.id === found.id) ?? null) : null;
+}
+
+/**
+ * Forme moyenne de l'icône de rôle affichée à gauche de chaque ligne du tableau (grille 10 × 9 de taux
+ * d'encre, mesurée sur des captures 1080p). Elle donne le rôle d'une ligne avant même que son héros soit nommé.
+ */
+const ROLE_REFS: Record<Role, string> = {
+  Vanguard: "AAAAAAAAAAAAAAAAbxIAADJXAAAAYOzMIEbR7EIAAEbXzFefv+cyAAAAN9Kn/8wnAAAAAAis/+dsAAAAAC7Y/+yM/74ZBAATICAQGCAgDBYAAAAAAAAAAAso",
+  Duelist: "AAAAAAAoAAAAAAAAAABg7zQAAAAAACCq5tjrZwAAAAAf/+fX/+dAAAAAAP+hZvjeGAAAGsG9/8G5HgAAAGH/4t//UAAABgAYXV1dTQAAAB0AAAAAAAAAAAwm",
+  Strategist: "AAAAAAAAAAAAAAAAAAAAACoHAAAABWSrscPXLQAAAKX////fHwAAAABH////9+R9AAAAAFgnSMH450UAAAAAAAAAKoF6AwAAAAAAAAAAACUAAAAAAAAAAAou",
+};
+let roleIndex: { role: Role; bytes: Uint8Array }[] | null = null;
+
+/** Rôle lu sur l'icône d'une ligne, ou null si elle ne ressemble à aucune des trois. */
+export function detectRole(roleFp: string): Role | null {
+  roleIndex ??= (Object.entries(ROLE_REFS) as [Role, string][]).map(([role, fp]) => ({ role, bytes: decodeFp(fp) }));
+  let bytes: Uint8Array;
+  try {
+    bytes = decodeFp(roleFp);
+  } catch {
+    return null;
+  }
+  let best: { role: Role; d: number } | null = null;
+  for (const r of roleIndex) {
+    const d = fpDistance(bytes, r.bytes);
+    if (!best || d < best.d) best = { role: r.role, d };
+  }
+  return best && best.d < 30 ? best.role : null;
 }

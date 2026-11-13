@@ -32,7 +32,7 @@ export default async function HeroPage({ params }: { params: Promise<{ slug: str
 
   return (
     <>
-      <Link href="/" className="text-sm text-muted hover:text-fg">
+      <Link href="/guides" className="text-sm text-muted hover:text-fg">
         ← Tous les héros
       </Link>
       <GuideBanner

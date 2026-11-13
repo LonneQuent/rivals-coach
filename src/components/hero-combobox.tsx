@@ -29,6 +29,7 @@ export function HeroCombobox({
   onChange,
   disabledIds = [],
   label,
+  firstRole,
 }: {
   id: string;
   heroes: Hero[];
@@ -36,6 +37,8 @@ export function HeroCombobox({
   onChange: (v: HeroPick) => void;
   disabledIds?: number[];
   label: React.ReactNode;
+  /** Rôle dont les héros sont proposés en premier (les autres restent disponibles ensuite). */
+  firstRole?: Role;
 }) {
   const listId = useId();
   const [open, setOpen] = useState(false);
@@ -46,13 +49,13 @@ export function HeroCombobox({
 
   const options = useMemo<Option[]>(
     () =>
-      ROLES.flatMap((role) =>
+      [...ROLES].sort((a, b) => Number(b === firstRole) - Number(a === firstRole)).flatMap((role) =>
         heroes
           .filter((h) => h.roles.includes(role))
           .sort((a, b) => a.name.localeCompare(b.name, "fr"))
           .map((h) => ({ heroId: h.id, role, name: h.name, multi: h.roles.length > 1, src: h.portrait_url ?? null })),
       ),
-    [heroes],
+    [heroes, firstRole],
   );
 
   const filtered = useMemo(() => {

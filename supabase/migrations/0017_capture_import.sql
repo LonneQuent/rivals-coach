@@ -11,6 +11,8 @@ alter table public.profiles add column if not exists ingame_name text;
 alter table public.profiles drop constraint if exists profiles_ingame_name_check;
 alter table public.profiles add constraint profiles_ingame_name_check check (char_length(ingame_name) between 1 and 40);
 alter table public.profiles add column if not exists accept_shared_imports boolean not null default true;
+-- La lecture de profiles est accordée colonne par colonne (0006) : les nouvelles colonnes doivent l'être aussi
+grant select (ingame_name, accept_shared_imports) on public.profiles to authenticated;
 grant update (ingame_name, accept_shared_imports) on public.profiles to authenticated;
 
 -- 2. Parties : replay, origine, feuille de match

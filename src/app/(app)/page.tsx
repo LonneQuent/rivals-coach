@@ -1,132 +1,41 @@
-import Link from "next/link";
-import { Brain, GraduationCap, Map as MapIcon, Swords, UserRound } from "lucide-react";
 import { getRefs, requireSession } from "@/lib/data";
-import { ROLES } from "@/lib/types";
-import { roleSlug } from "@/lib/guides";
-import { HeroMark, RoleDot, buttonClass } from "@/components/ui";
-import { RoleEmblem } from "@/components/illustrations";
-import { MascotTip } from "@/components/mascot";
-import { Rich } from "@/components/guide-view";
-import { tipOfTheDay } from "@/lib/tips";
+import { MATCH_STATS_SELECT, type Goal, type MatchRow } from "@/lib/stats";
+import { HomeView, type GuideNews, type HomeData, type LastMatch } from "@/components/home-view";
+
+const NEW_HERO_DAYS = 45;
 
 export default async function HomePage() {
   const { supabase, user, profile } = await requireSession();
-  const [{ heroes }, recent, guidesRes] = await Promise.all([
+  const [refs, matchesRes, lastRes, goalsRes, picksRes, focusRes, noteRes, guidesRes, newRes] = await Promise.all([
     getRefs(),
-    supabase.from("matches").select("id, result, played_at").eq("user_id", user.id).order("played_at", { ascending: false }).limit(10),
-    supabase.from("guides").select("kind, hero_id, role").eq("status", "published"),
+    supabase.from("matches").select(MATCH_STATS_SELECT).eq("user_id", user.id).order("played_at", { ascending: false }).limit(60),
+    supabase
+      .from("matches")
+      .select("id, played_at, result, award, duration_min, map:maps(name), queue:queues(name), match_heroes(hero_id, position, role, kills, deaths, assists)")
+      .eq("user_id", user.id)
+      .order("played_at", { ascending: false })
+      .limit(1),
+    supabase.from("goals").select("id, metric, op, target, role, created_by, user_id").eq("user_id", user.id).eq("active", true).order("created_at"),
+    supabase.from("player_heroes").select("hero_id, kind").eq("user_id", user.id),
+    supabase.rpc("get_focus_areas", { p_player: user.id }),
+    supabase.from("coach_notes").select("id, body, created_at, coach:profiles!coach_notes_coach_id_fkey(pseudo)").eq("player_id", user.id).order("created_at", { ascending: false }).limit(1),
+    supabase.from("guides").select("hero_id, season:content->kit->>season, changes:content->kit->changes").eq("kind", "hero").eq("status", "published"),
+    supabase.from("heroes").select("id, created_at").gte("created_at", new Date(Date.now() - NEW_HERO_DAYS * 864e5).toISOString()),
   ]);
-  const guides = (guidesRes.data ?? []) as { kind: "hero" | "role"; hero_id: number | null; role: string | null }[];
-  const heroGuide = new Set(guides.filter((g) => g.kind === "hero").map((g) => g.hero_id));
-  const roleGuide = new Set(guides.filter((g) => g.kind === "role").map((g) => g.role));
-  const last = (recent.data ?? []) as { id: string; result: "win" | "loss"; played_at: string }[];
-  const wins = last.filter((m) => m.result === "win").length;
 
   return (
-    <>
-      <section className="flex flex-wrap items-end justify-between gap-4">
-        <div className="min-w-0">
-          <p className="eyebrow">Salut {profile?.pseudo || "toi"}</p>
-          <h1 className="text-3xl uppercase tracking-wide sm:text-4xl">Guides des héros</h1>
-          <p className="mt-1 max-w-xl text-sm text-fg-2">Choisis un héros pour voir ses forces, ses counters et les tips de top players.</p>
-        </div>
-        <div className="card flex items-center gap-4 py-3">
-          {last.length ? (
-            <>
-              <div>
-                <p className="eyebrow">10 dernières</p>
-                <p className="font-display text-2xl font-bold tabular">
-                  {wins}V – {last.length - wins}D
-                </p>
-              </div>
-              <div className="flex gap-1" aria-label="Résultats récents, du plus récent au plus ancien">
-                {last.map((m) => (
-                  <span key={m.id} title={m.result === "win" ? "Victoire" : "Défaite"} className={m.result === "win" ? "h-6 w-1.5 rounded-full bg-good" : "h-6 w-1.5 rounded-full bg-bad"} />
-                ))}
-              </div>
-            </>
-          ) : (
-            <p className="text-sm text-fg-2">Aucune partie saisie pour l&apos;instant.</p>
-          )}
-          <Link href="/saisir" className={buttonClass("primary")}>
-            Saisir
-          </Link>
-        </div>
-      </section>
-
-      <MascotTip title="Le conseil du Prof" className="max-w-2xl">
-        <Rich text={tipOfTheDay()} />
-      </MascotTip>
-
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="Guides de rôle et compos">
-        {ROLES.map((role) => (
-          <Link
-            key={role}
-            href={`/guides/${roleSlug(role)}`}
-            className="card lift flex items-center gap-3 py-3"
-          >
-            <RoleEmblem role={role} className="size-11 shrink-0" />
-            <div className="min-w-0 flex-1">
-              <p className="font-display text-lg font-bold uppercase tracking-wide">Jouer {role}</p>
-              <p className="text-xs text-muted">{roleGuide.has(role) ? "Guide du rôle disponible" : "Guide à venir"}</p>
-            </div>
-            <span aria-hidden className="text-muted">→</span>
-          </Link>
-        ))}
-        <Link href="/compos" className="card lift flex items-center gap-3 py-3">
-          <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-accent/15 text-accent" aria-hidden>
-            <Swords className="size-6" />
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="font-display text-lg font-bold uppercase tracking-wide">Compos d&apos;équipe</p>
-            <p className="text-xs text-muted">Jouer à six : qui fait quoi</p>
-          </div>
-          <span aria-hidden className="text-muted">→</span>
-        </Link>
-        {[
-          { href: "/cartes", title: "Cartes", blurb: "Chokes, high grounds et routes", Icon: MapIcon },
-          { href: "/guides/game-sense", title: "Game sense", blurb: "Lire la partie comme un pro", Icon: Brain },
-          { href: "/guides/solo-queue", title: "Solo queue", blurb: "Monter seul sans tilter", Icon: UserRound },
-          { href: "/quiz", title: "Quiz", blurb: "Connais-tu tes héros ?", Icon: GraduationCap },
-        ].map(({ href, title, blurb, Icon }) => (
-          <Link key={href} href={href} className="card lift flex items-center gap-3 py-3">
-            <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-accent/15 text-accent" aria-hidden>
-              <Icon className="size-6" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="font-display text-lg font-bold uppercase tracking-wide">{title}</p>
-              <p className="text-xs text-muted">{blurb}</p>
-            </div>
-            <span aria-hidden className="text-muted">→</span>
-          </Link>
-        ))}
-      </section>
-
-      <div className="grid gap-6 lg:grid-cols-3">
-        {ROLES.map((role) => {
-          const list = heroes.filter((h) => h.roles.includes(role));
-          return (
-            <section key={role} className="flex min-w-0 flex-col gap-3">
-              <h2 className="flex items-center gap-2 text-lg uppercase tracking-wide">
-                <RoleDot role={role} />
-                {role}
-                <span className="text-sm font-semibold text-muted">{list.length}</span>
-              </h2>
-              <ul className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-                {list.map((h) => (
-                  <li key={`${role}-${h.id}`}>
-                    <Link href={`/heros/${h.slug}`} className="lift flex items-center gap-3 rounded-lg border border-line bg-surface px-3 py-2">
-                      <HeroMark name={h.name} role={role} size="sm" src={h.portrait_url} />
-                      <span className="min-w-0 flex-1 truncate text-sm font-semibold">{h.name}</span>
-                      {heroGuide.has(h.id) ? <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[11px] font-semibold text-accent">Fiche</span> : null}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          );
-        })}
-      </div>
-    </>
+    <HomeView
+      pseudo={profile?.pseudo ?? null}
+      userId={user.id}
+      heroes={refs.heroes}
+      matches={((matchesRes.data ?? []) as unknown as MatchRow[]).slice().reverse()}
+      last={((lastRes.data ?? []) as unknown as LastMatch[])[0] ?? null}
+      goalRows={(goalsRes.data ?? []) as Goal[]}
+      picks={(picksRes.data ?? []) as HomeData["picks"]}
+      focus={(focusRes.data as string[] | null) ?? []}
+      note={((noteRes.data ?? []) as unknown as NonNullable<HomeData["note"]>[])[0] ?? null}
+      news={(guidesRes.data ?? []) as unknown as GuideNews[]}
+      newHeroIds={((newRes.data ?? []) as { id: number }[]).map((h) => h.id)}
+    />
   );
 }

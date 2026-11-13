@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
+  BookOpen,
   ChartColumn,
   GraduationCap,
   History,
@@ -24,30 +25,50 @@ import {
 
 type Item = { href: string; label: string; icon: LucideIcon; admin?: boolean; coach?: boolean; accent?: boolean };
 
-const ITEMS: Item[] = [
-  { href: "/", label: "Accueil", icon: House },
-  { href: "/profil", label: "Mon profil", icon: UserRound },
-  { href: "/saisir", label: "Saisir une partie", icon: PlusCircle, accent: true },
-  { href: "/historique", label: "Historique", icon: History },
-  { href: "/stats", label: "Stats", icon: ChartColumn },
-  { href: "/compos", label: "Compos", icon: Swords },
-  { href: "/cartes", label: "Cartes", icon: MapIcon },
-  { href: "/quiz", label: "Quiz", icon: GraduationCap },
-  { href: "/questions", label: "Questions", icon: MessageCircleQuestion },
-  { href: "/equipe", label: "Équipe", icon: Users, coach: true },
-  { href: "/admin", label: "Admin", icon: Settings, admin: true },
+// Trois familles : ce que je joue, ce que j'apprends, ce qui concerne le groupe
+const GROUPS: { label: string; items: Item[] }[] = [
+  {
+    label: "Jouer",
+    items: [
+      { href: "/", label: "Accueil", icon: House },
+      { href: "/saisir", label: "Saisir une partie", icon: PlusCircle, accent: true },
+      { href: "/historique", label: "Historique", icon: History },
+      { href: "/stats", label: "Stats", icon: ChartColumn },
+      { href: "/profil", label: "Mon profil", icon: UserRound },
+    ],
+  },
+  {
+    label: "Apprendre",
+    items: [
+      { href: "/guides", label: "Guides", icon: BookOpen },
+      { href: "/compos", label: "Compos", icon: Swords },
+      { href: "/cartes", label: "Cartes", icon: MapIcon },
+      { href: "/quiz", label: "Quiz", icon: GraduationCap },
+    ],
+  },
+  {
+    label: "Groupe",
+    items: [
+      { href: "/questions", label: "Questions", icon: MessageCircleQuestion },
+      { href: "/equipe", label: "Équipe", icon: Users, coach: true },
+      { href: "/admin", label: "Admin", icon: Settings, admin: true },
+    ],
+  },
 ];
+const ITEMS: Item[] = GROUPS.flatMap((g) => g.items);
 
-const MOBILE: string[] = ["/", "/stats", "/saisir", "/historique", "/profil"];
+const MOBILE: string[] = ["/", "/guides", "/saisir", "/stats", "/profil"];
 
 function isActive(path: string, href: string) {
-  return href === "/" ? path === "/" || path.startsWith("/heros") : path.startsWith(href);
+  if (href === "/") return path === "/";
+  if (href === "/guides") return path.startsWith("/guides") || path.startsWith("/heros");
+  return path.startsWith(href);
 }
 
 export function Sidebar({ initialCollapsed, isAdmin, isCoach, pseudo, avatarUrl }: { initialCollapsed: boolean; isAdmin: boolean; isCoach: boolean; pseudo: string; avatarUrl: string | null }) {
   const path = usePathname();
   const [collapsed, setCollapsed] = useState(initialCollapsed);
-  const items = ITEMS.filter((i) => (!i.admin || isAdmin) && (!i.coach || isCoach));
+  const groups = GROUPS.map((g) => ({ ...g, items: g.items.filter((i) => (!i.admin || isAdmin) && (!i.coach || isCoach)) })).filter((g) => g.items.length);
 
   function toggle() {
     const next = !collapsed;
@@ -74,29 +95,34 @@ export function Sidebar({ initialCollapsed, isAdmin, isCoach, pseudo, avatarUrl 
             {collapsed ? <PanelLeftOpen className="size-5" /> : <PanelLeftClose className="size-5" />}
           </button>
         </div>
-        <nav className="flex flex-1 flex-col gap-1 p-3" aria-label="Navigation principale">
-          {items.map((item) => {
-            const active = isActive(path, item.href);
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                title={collapsed ? item.label : undefined}
-                aria-current={active ? "page" : undefined}
-                className={clsx(
-                  "group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors",
-                  collapsed && "justify-center px-0",
-                  active ? "bg-surface-3 text-fg" : "text-fg-2 hover:bg-surface-2 hover:text-fg",
-                  item.accent && !active && "text-accent",
-                )}
-              >
-                {active ? <span className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-accent" aria-hidden /> : null}
-                <Icon className="size-5 shrink-0" />
-                {!collapsed ? <span className="truncate">{item.label}</span> : null}
-              </Link>
-            );
-          })}
+        <nav className="flex flex-1 flex-col gap-4 overflow-y-auto p-3" aria-label="Navigation principale">
+          {groups.map((group, gi) => (
+            <div key={group.label} className={clsx("flex flex-col gap-1", collapsed && gi > 0 && "border-t border-line pt-3")}>
+              {!collapsed ? <p className="px-3 pb-0.5 text-xs font-medium text-muted">{group.label}</p> : null}
+              {group.items.map((item) => {
+                const active = isActive(path, item.href);
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    title={collapsed ? item.label : undefined}
+                    aria-current={active ? "page" : undefined}
+                    className={clsx(
+                      "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold transition-colors",
+                      collapsed && "justify-center px-0",
+                      active ? "bg-surface-3 text-fg" : "text-fg-2 hover:bg-surface-2 hover:text-fg",
+                      item.accent && !active && "text-accent",
+                    )}
+                  >
+                    {active ? <span className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-accent" aria-hidden /> : null}
+                    <Icon className="size-5 shrink-0" />
+                    {!collapsed ? <span className="truncate">{item.label}</span> : null}
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
         </nav>
         <div className={clsx("flex items-center gap-3 border-t border-line p-3", collapsed && "flex-col")}>
           <Avatar url={avatarUrl} pseudo={pseudo} />
@@ -126,7 +152,7 @@ export function Sidebar({ initialCollapsed, isAdmin, isCoach, pseudo, avatarUrl 
               className={clsx("flex flex-col items-center gap-0.5 py-2 text-[11px] font-semibold", active ? "text-fg" : "text-muted", item.accent && "text-accent")}
             >
               <Icon className={clsx("size-5", item.accent && "size-6")} />
-              {item.accent ? "Saisir" : item.label.replace("Mon ", "")}
+              {item.accent ? "Saisir" : item.href === "/profil" ? "Profil" : item.label}
             </Link>
           );
         })}

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { Check, ClipboardPaste, ImageUp, Loader2, TriangleAlert, Users } from "lucide-react";
 import { STAT_FIELDS, type Hero, type Refs, type Role, type StatKey } from "@/lib/types";
-import { buildFpIndex, decodeFp, fpDistance, FP_SAME, mapKey, matchMap, matchMode, nearestHero, sameName, type Fingerprint, type FpIndex } from "@/lib/capture/match";
+import { buildFpIndex, detectRole, FP_SAME, mapKey, matchMap, matchMode, nearestHero, sameName, type Fingerprint, type FpIndex } from "@/lib/capture/match";
 import type { CaptureStats, ParsedCapture, Reader } from "@/lib/capture/read";
 import { buttonClass } from "@/components/ui";
 import { HeroCombobox, type HeroPick } from "@/components/hero-combobox";
@@ -14,7 +14,7 @@ import { importCapture } from "./capture-actions";
 
 export type CaptureMember = { id: string; pseudo: string | null; ingame_name: string | null; accepts: boolean };
 
-type Extra = { fp: string; thumb: string; pick: HeroPick; known: boolean; minutes: string };
+type Extra = { fp: string; thumb: string; pick: HeroPick; known: boolean };
 type Slot = {
   index: number;
   team: 0 | 1;
@@ -139,7 +139,7 @@ export function CaptureImport({
         const target = c.popover.row ?? meIndex;
         if (target < 0 || slots[target].extras.length) continue;
         const slot = slots[target];
-        slot.extras = c.popover.avatars.map((a) => ({ fp: a.fp, thumb: a.thumb, ...pickFor("avatar", a.fp), minutes: "" }));
+        slot.extras = c.popover.avatars.map((a) => ({ fp: a.fp, thumb: a.thumb, ...pickFor("avatar", a.fp) }));
         // Hypothèse : la bannière montre le premier héros de la liste. Ce que l'un sait pré-remplit l'autre (modifiable)
         if (!slot.pick && slot.extras[0].pick) slot.pick = slot.extras[0].pick;
         else if (slot.pick && !slot.extras[0].pick) slot.extras[0].pick = slot.pick;
@@ -216,21 +216,19 @@ export function CaptureImport({
   const patch = (p: Partial<Draft>) => setDrafts((ds) => ds.map((d, i) => (i === cursor ? { ...d, ...p } : d)));
   const patchSlot = (index: number, p: Partial<Slot>) => setDrafts((ds) => ds.map((d, i) => (i === cursor ? { ...d, slots: d.slots.map((s) => (s.index === index ? { ...s, ...p } : s)) } : d)));
 
-  function heroesOf(s: Slot): { hero: Hero; role: Role; minutes: number | null }[] | null {
-    const out: { hero: Hero; role: Role; minutes: number | null }[] = [];
-    const push = (pick: HeroPick, minutes: string) => {
+  function heroesOf(s: Slot): { hero: Hero; role: Role }[] | null {
+    const out: { hero: Hero; role: Role }[] = [];
+    const push = (pick: HeroPick) => {
       if (!pick) return false;
       const hero = heroById.get(pick.heroId);
       if (!hero) return false;
-      const seen = out.find((o) => o.hero.id === hero.id);
-      if (seen) seen.minutes ??= num(minutes);
-      else out.push({ hero, role: pick.role, minutes: num(minutes) });
+      if (!out.some((o) => o.hero.id === hero.id)) out.push({ hero, role: pick.role });
       return true;
     };
     const seenRole = roles.get(s.index);
     const banner = s.pick && seenRole && heroById.get(s.pick.heroId)?.roles.includes(seenRole) ? { ...s.pick, role: seenRole } : s.pick;
-    if (!push(banner, "")) return null;
-    for (const e of s.extras) if (!push(e.pick, e.minutes)) return null;
+    if (!push(banner)) return null;
+    for (const e of s.extras) if (!push(e.pick)) return null;
     return out;
   }
 
@@ -255,7 +253,7 @@ export function CaptureImport({
         result,
         award: s.award ? (result === "win" ? "MVP" : "SVP") : "",
         ...stats,
-        heroes: heroes.map((h) => ({ hero_id: h.hero.id, role: h.role, play_minutes: h.minutes })),
+        heroes: heroes.map((h) => ({ hero_id: h.hero.id, role: h.role, play_minutes: null })),
         enemy_ids: enemyIds,
         roster: draft.slots.map((o) => ({
           side: o.team === s.team ? ("ally" as const) : ("enemy" as const),
@@ -319,26 +317,15 @@ export function CaptureImport({
     });
   }
 
-  // Rôle de chaque ligne, lu sur son icône : les lignes dont le héros n'a qu'un rôle servent de référence
+  // Rôle de chaque ligne, lu sur son icône : connu avant même que le héros soit nommé
   const roles = useMemo(() => {
     const out = new Map<number, Role>();
-    if (!draft) return out;
-    const refs: { role: Role; bytes: Uint8Array }[] = [];
-    for (const s of draft.slots) {
-      const hero = s.pick ? heroById.get(s.pick.heroId) : undefined;
-      if (hero?.roles.length === 1) refs.push({ role: hero.roles[0], bytes: decodeFp(s.roleFp) });
-    }
-    for (const s of draft.slots) {
-      const bytes = decodeFp(s.roleFp);
-      let best: { role: Role; d: number } | null = null;
-      for (const r of refs) {
-        const d = fpDistance(bytes, r.bytes);
-        if (!best || d < best.d) best = { role: r.role, d };
-      }
-      if (best && best.d < 33) out.set(s.index, best.role);
+    for (const s of draft?.slots ?? []) {
+      const role = detectRole(s.roleFp);
+      if (role) out.set(s.index, role);
     }
     return out;
-  }, [draft, heroById]);
+  }, [draft]);
 
   const memberName = (id: string) => (id === me.id ? "Toi" : (members.find((m) => m.id === id)?.pseudo ?? "Coéquipier"));
   const unknown = draft ? draft.slots.filter((s) => !s.pick).length : 0;
@@ -542,6 +529,7 @@ export function CaptureImport({
                               <span className="sr-only">Héros</span>
                             )
                           }
+                          firstRole={roles.get(s.index)}
                           value={s.pick}
                           onChange={(v) => patchSlot(s.index, { pick: v, known: false, ...(v && s.extras.length && !s.extras[0].pick ? { extras: s.extras.map((x, j) => (j === 0 ? { ...x, pick: v } : x)) } : {}) })}
                           disabledIds={teamPicks}
@@ -579,7 +567,7 @@ export function CaptureImport({
                       {s.extras.length ? (
                         <div className="flex flex-col gap-2 rounded-lg border border-line p-2">
                           <p className="text-xs text-muted">
-                            Héros utilisés pendant la partie. Le tableau ne donne que les totaux : ils sont rattachés au premier héros. Indique les minutes si tu veux un suivi par héros.
+                            Héros utilisés pendant la partie. Le tableau ne donne que les totaux : ils sont rattachés au premier héros.
                           </p>
                           <div className="grid gap-2 sm:grid-cols-3">
                             {s.extras.map((e, k) => (
@@ -595,16 +583,6 @@ export function CaptureImport({
                                     onChange={(v) => patchSlot(s.index, { extras: s.extras.map((x, j) => (j === k ? { ...x, pick: v, known: false } : x)), ...(v && k === 0 && !s.pick ? { pick: v } : {}) })}
                                   />
                                 </div>
-                                <label className="flex w-16 shrink-0 flex-col gap-0.5 text-[11px] text-muted" htmlFor={`cap-min-${s.index}-${k}`}>
-                                  Min
-                                  <input
-                                    id={`cap-min-${s.index}-${k}`}
-                                    className="field tabular px-2 py-1.5 text-sm"
-                                    inputMode="decimal"
-                                    value={e.minutes}
-                                    onChange={(ev) => patchSlot(s.index, { extras: s.extras.map((x, j) => (j === k ? { ...x, minutes: ev.target.value.replace(/[^\d.,]/g, "").slice(0, 5) } : x)) })}
-                                  />
-                                </label>
                               </div>
                             ))}
                           </div>
@@ -625,7 +603,7 @@ export function CaptureImport({
                 </p>
               ) : (
                 <p className="text-fg-2">
-                  {unknown ? `${unknown} héros à identifier : une fois nommés, ils seront reconnus pour tout le groupe.` : "Tous les héros sont reconnus."}
+                  {unknown ? `${unknown} héros à nommer. C'est à faire une seule fois par héros et par skin : ils sont ensuite reconnus pour tout le groupe.` : "Tous les héros sont reconnus."}
                   {shared ? (
                     <span className="ml-2 inline-flex items-center gap-1 text-muted">
                       <Users className="size-4" aria-hidden /> aussi enregistrée pour {shared} coéquipier{shared > 1 ? "s" : ""}
