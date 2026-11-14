@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowRightLeft, ShieldAlert, Sparkles, Swords, Users } from "lucide-react";
 import { ROLES } from "@/lib/types";
-import { compLabel, type Matchup, type Review, type ReviewHero } from "@/lib/review";
+import { compLabel, type Matchup, type Review, type ReviewHero, type Verdict } from "@/lib/review";
 import { HeroMark, ROLE_STYLES } from "@/components/ui";
 
 function Chip({ hero }: { hero: ReviewHero }) {
@@ -13,7 +13,7 @@ function Chip({ hero }: { hero: ReviewHero }) {
   );
 }
 
-function Team({ title, heroes, comp }: { title: string; heroes: ReviewHero[]; comp: Review["comp"]["ally"] }) {
+function Team({ title, heroes, comp, style }: { title: string; heroes: ReviewHero[]; comp: Review["comp"]["ally"]; style: Review["comp"]["allyStyle"] }) {
   if (!heroes.length) return null;
   return (
     <div className="flex min-w-0 flex-col gap-2">
@@ -29,6 +29,11 @@ function Team({ title, heroes, comp }: { title: string; heroes: ReviewHero[]; co
               </span>
             ))}
           </span>
+        ) : null}
+        {style ? (
+          <Link href={`/compos/${style}`} className="rounded-full border border-line px-2 py-0.5 font-sans text-xs font-semibold normal-case tracking-normal text-fg-2 hover:border-accent/60">
+            Style {style}
+          </Link>
         ) : null}
       </p>
       <div className="flex flex-wrap gap-1.5">
@@ -73,26 +78,87 @@ function Matchups({ items, withNotes = true }: { items: Matchup[]; withNotes?: b
   );
 }
 
+const WHO = { toi: { label: "Toi", cls: "bg-accent text-accent-ink" }, equipe: { label: "Équipe", cls: "bg-surface-3 text-fg" } } as const;
+
+/** Le verdict : la cause principale, les écarts qui l'appuient, puis ce qu'il fallait faire, dans l'ordre d'importance. */
+function VerdictCard({ verdict, mine }: { verdict: Verdict; mine: boolean }) {
+  const loss = verdict.kind === "loss";
+  return (
+    <div className={`flex flex-col gap-4 rounded-lg border-l-4 bg-surface-2 p-4 ${loss ? "border-bad" : "border-good"}`}>
+      <div className="flex flex-col gap-2">
+        <p className={`text-xs font-semibold ${loss ? "text-bad" : "text-good"}`}>{loss ? "Ce qui a fait perdre" : "Ce qui a fait gagner"}</p>
+        <p className="font-display text-2xl font-semibold leading-tight text-fg">{verdict.headline}</p>
+        {verdict.causes.length ? (
+          <ul className="tabular flex flex-col gap-1 text-sm text-fg-2">
+            {verdict.causes.map((c) => (
+              <li key={c} className="flex gap-2">
+                <span aria-hidden className={`mt-2 size-1.5 shrink-0 rounded-full ${loss ? "bg-bad" : "bg-good"}`} />
+                {c}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+      {verdict.steps.length ? (
+        <div className="flex flex-col gap-2">
+          <h3 className="font-display text-base font-semibold uppercase tracking-wide">{loss ? "Pour gagner, il fallait" : "À corriger quand même"}</h3>
+          <ol className="flex flex-col gap-2">
+            {verdict.steps.map((s) => (
+              <li key={s.title} className="flex flex-col gap-1 rounded-lg border border-line bg-surface p-3 sm:flex-row sm:gap-3">
+                <span className={`h-fit w-fit shrink-0 rounded-full px-2.5 py-0.5 text-xs font-bold sm:mt-0.5 sm:w-16 sm:text-center ${WHO[s.who].cls}`}>{WHO[s.who].label}</span>
+                <div className="flex min-w-0 flex-col gap-1">
+                  <p className="font-semibold text-fg">{s.title}</p>
+                  <p className="text-sm text-fg-2">{s.detail}</p>
+                  {s.link ? (
+                    <Link href={s.link.href} className="w-fit text-sm font-semibold text-accent hover:underline">
+                      {s.link.label}
+                    </Link>
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+      ) : null}
+      <p className="text-xs text-muted">
+        {verdict.full
+          ? "Déduit des écarts de la feuille de match, des counters des guides et des compos. La feuille ne dit pas qui a tué qui : ce sont les causes les plus probables, pas une certitude."
+          : "Bilan partiel : sans la feuille de match, il ne porte que sur ton héros et la compo adverse."}
+        {!verdict.full && mine ? (
+          <>
+            {" "}
+            <Link href="/saisir?mode=capture" className="font-semibold text-accent hover:underline">
+              Importer la capture
+            </Link>
+          </>
+        ) : null}
+      </p>
+    </div>
+  );
+}
+
 const TONE = { good: "border-good/40 bg-good-bg text-good", warn: "border-bad/40 bg-bad-bg text-bad", info: "border-line bg-surface-2 text-fg-2" } as const;
 
 /**
  * Review d'une partie : les deux compos, ce qui contrait ton héros, ce qu'il contrait, les synergies et
  * les changements de héros qui auraient mieux répondu à la compo adverse.
  */
-export function MatchReview({ review, hero, allies, enemies }: { review: Review; hero: ReviewHero; allies: ReviewHero[]; enemies: ReviewHero[] }) {
+export function MatchReview({ review, hero, allies, enemies, mine = true }: { review: Review; hero: ReviewHero; allies: ReviewHero[]; enemies: ReviewHero[]; mine?: boolean }) {
   const empty = !review.threats.length && !review.targets.length && !review.synergies.length && !review.teamups.length && !review.swaps.length && !review.pressured.length;
   return (
     <section className="card flex flex-col gap-4" aria-labelledby="review">
       <div>
         <h2 id="review" className="text-lg uppercase tracking-wide">
-          Review de la partie
+          Bilan de la partie
         </h2>
-        <p className="text-sm text-muted">Calculée à partir des counters et synergies des guides, sans appel à une IA. Elle porte sur {hero.name}.</p>
+        <p className="text-sm text-muted">Calculé par règles à partir de la feuille de match, des guides et des compos, sans appel à une IA. Il porte sur {hero.name}.</p>
       </div>
 
+      {review.verdict ? <VerdictCard verdict={review.verdict} mine={mine} /> : null}
+
       <div className="grid gap-4 md:grid-cols-2">
-        <Team title="Ton équipe" heroes={allies.length ? [hero, ...allies] : []} comp={review.comp.ally} />
-        <Team title="Équipe adverse" heroes={enemies} comp={review.comp.enemy} />
+        <Team title="Ton équipe" heroes={allies.length ? [hero, ...allies] : []} comp={review.comp.ally} style={review.comp.allyStyle} />
+        <Team title="Équipe adverse" heroes={enemies} comp={review.comp.enemy} style={review.comp.enemyStyle} />
       </div>
 
       {review.comp.notes.length || review.facts.length ? (

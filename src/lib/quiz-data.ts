@@ -1,9 +1,9 @@
 import "server-only";
 import type { createClient } from "@/lib/supabase/server";
-import { parseContent, sectionAnchor } from "@/lib/guides";
+import { parseContent, roleFromSlug, sectionAnchor } from "@/lib/guides";
 import { mapShortName, mapSlug } from "@/lib/maps";
 import type { HandQuestion, QuizSource } from "@/lib/quiz";
-import type { Hero, MapRef } from "@/lib/types";
+import type { Hero, MapRef, Role } from "@/lib/types";
 
 type Client = Awaited<ReturnType<typeof createClient>>;
 
@@ -63,7 +63,7 @@ export async function getHandQuestions(supabase: Client, heroes: Hero[], maps: M
   if (error || !data?.length) return [];
   const rows = data as HandRow[];
   const needOther = rows.some((r) => !r.hero_id);
-  const other = needOther ? (((await supabase.from("guides").select("kind, map_id, slug, content").in("kind", ["map", "general"])).data ?? []) as { kind: string; map_id: number | null; slug: string | null; content: unknown }[]) : [];
+  const other = needOther ? (((await supabase.from("guides").select("kind, map_id, slug, role, content").in("kind", ["map", "general", "role"])).data ?? []) as { kind: string; map_id: number | null; slug: string | null; role: Role | null; content: unknown }[]) : [];
   const heroById = new Map(heroes.map((h) => [h.id, h]));
   const guideOfHero = new Map(sources.map((s) => [s.hero.id, s.guide]));
   const anchor = (sections: { title: string }[] | undefined, title: string) => {
@@ -84,9 +84,11 @@ export async function getHandQuestions(supabase: Client, heroes: Hero[], maps: M
       return [{ ...base, heroSlug: null, subject: mapShortName(m.name), href: `/cartes/${mapSlug(m.name)}${anchor(g ? parseContent(g.content).sections : undefined, r.section)}` }];
     }
     if (r.guide_slug) {
-      const g = other.find((x) => x.kind === "general" && x.slug === r.guide_slug);
+      // Un slug de rôle (« duelist ») renvoie au guide du rôle, les autres aux guides généraux
+      const role = roleFromSlug(r.guide_slug);
+      const g = role ? other.find((x) => x.kind === "role" && x.role === role) : other.find((x) => x.kind === "general" && x.slug === r.guide_slug);
       const c = g ? parseContent(g.content) : null;
-      return [{ ...base, heroSlug: null, subject: c?.title || r.guide_slug, href: `/guides/${r.guide_slug}${anchor(c?.sections, r.section)}` }];
+      return [{ ...base, heroSlug: null, subject: role ? `Jouer ${role}` : c?.title || r.guide_slug, href: `/guides/${r.guide_slug}${anchor(c?.sections, r.section)}` }];
     }
     return [];
   });

@@ -5,9 +5,10 @@ import { z } from "zod";
 import { getRefs, requireSession } from "@/lib/data";
 import { getEnemyIds } from "@/lib/matches";
 import { mapShortName } from "@/lib/maps";
+import { parseComp } from "@/lib/comps";
 import type { Role } from "@/lib/types";
 import { HeroMark, ResultPill, RoleBadge, buttonClass } from "@/components/ui";
-import { buildReview, type GuideLite, type ReviewHero, type RosterEntry } from "@/lib/review";
+import { buildReview, type CompLite, type GuideLite, type ReviewHero, type RosterEntry } from "@/lib/review";
 import { MatchReview } from "@/components/match-review";
 import { DeleteMatchButton } from "../delete-button";
 import { MatchComments, type CommentView } from "./comments";
@@ -88,29 +89,42 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
   const date = new Date(m.played_at);
 
   // Review : feuille de match (import de capture, migration 0017), guides et héros que le joueur sait jouer
-  const [extraRes, guidesRes, poolRes, playedRes] = await Promise.all([
+  const [extraRes, guidesRes, poolRes, playedRes, compsRes] = await Promise.all([
     supabase.from("matches").select("roster, source").eq("id", m.id).maybeSingle(),
-    supabase.from("guides").select("hero_id, counters:content->counters, synergies:content->synergies, teamups:content->kit->teamups").eq("kind", "hero"),
+    supabase.from("guides").select("hero_id, counters:content->counters, synergies:content->synergies, teamups:content->kit->teamups, tags:content->tags").eq("kind", "hero"),
     supabase.from("player_heroes").select("hero_id").eq("user_id", m.user_id),
-    supabase.from("matches").select("match_heroes(hero_id)").eq("user_id", m.user_id).order("played_at", { ascending: false }).limit(150),
+    supabase.from("matches").select("id, match_heroes(hero_id, position, deaths)").eq("user_id", m.user_id).order("played_at", { ascending: false }).limit(150),
+    supabase.from("team_comps").select("slug, content").eq("status", "published"),
   ]);
   const extra = extraRes.error ? null : (extraRes.data as { roster: RosterEntry[] | null; source: string } | null);
   const roster = extra?.roster ?? [];
   const heroOf = new Map(allHeroes.map((h) => [h.id, h]));
   const guides = new Map<string, GuideLite>();
-  for (const g of (guidesRes.data ?? []) as unknown as { hero_id: number | null; counters: GuideLite["counters"] | null; synergies: GuideLite["synergies"] | null; teamups: GuideLite["teamups"] | null }[]) {
+  for (const g of (guidesRes.data ?? []) as unknown as { hero_id: number | null; counters: GuideLite["counters"] | null; synergies: GuideLite["synergies"] | null; teamups: GuideLite["teamups"] | null; tags: string[] | null }[]) {
     const slug = g.hero_id ? heroOf.get(g.hero_id)?.slug : undefined;
-    if (slug) guides.set(slug, { counters: g.counters ?? [], synergies: g.synergies ?? [], teamups: (g.teamups ?? []).map((t) => ({ ...t, partners: t.partners ?? [] })) });
+    if (slug) guides.set(slug, { counters: g.counters ?? [], synergies: g.synergies ?? [], teamups: (g.teamups ?? []).map((t) => ({ ...t, partners: t.partners ?? [] })), tags: g.tags ?? [] });
   }
+  // Compos de référence : elles disent quel héros appartient à quel style, et quel style bat lequel
+  const comps: CompLite[] = ((compsRes.data ?? []) as { slug: string; content: unknown }[]).flatMap((r) => {
+    const c = parseComp(r.content);
+    return c ? [{ slug: r.slug, name: c.name, tagline: c.tagline, heroes: [...c.heroes.map((h) => h.hero), ...c.alternatives.map((a) => a.hero)], strong_vs: c.strong_vs, weak_vs: c.weak_vs }] : [];
+  });
   const poolIds = new Set<number>(((poolRes.data ?? []) as { hero_id: number }[]).map((r) => r.hero_id));
-  for (const row of (playedRes.data ?? []) as { match_heroes: { hero_id: number }[] }[]) for (const h of row.match_heroes) poolIds.add(h.hero_id);
+  const played = (playedRes.data ?? []) as { id: string; match_heroes: { hero_id: number; position: number; deaths: number | null }[] }[];
+  for (const row of played) for (const h of row.match_heroes) poolIds.add(h.hero_id);
   const pick = (ids: (number | null)[]): ReviewHero[] => [...new Set(ids)].map((hid) => (hid ? heroOf.get(hid) : undefined)).filter((h) => h !== undefined);
   const allies = pick(roster.filter((r) => r.side === "ally" && !r.me).map((r) => r.hero_id));
   const mineHeroes = heroes.flatMap((h) => {
     const hero = h.hero ? allHeroes.find((x) => x.slug === h.hero!.slug) : undefined;
     return hero ? [{ hero, role: h.role }] : [];
   });
-  const review = buildReview({ mine: mineHeroes, allies, enemies, guides, pool: pick([...poolIds]), roster });
+  // Habitudes du joueur sur ce héros : ses autres parties où il l'a joué en premier
+  const mainId = mineHeroes[0]?.hero.id;
+  const usual = played
+    .filter((row) => row.id !== m.id && row.match_heroes.some((h) => h.position === 0 && h.hero_id === mainId) && row.match_heroes.some((h) => h.deaths !== null))
+    .map((row) => row.match_heroes.reduce((s, h) => s + (h.deaths ?? 0), 0));
+  const baseline = usual.length ? { matches: usual.length, deaths: usual.reduce((s, v) => s + v, 0) / usual.length } : null;
+  const review = buildReview({ result: m.result, mine: mineHeroes, allies, enemies, guides, pool: pick([...poolIds]), roster, comps, totals: { deaths }, baseline });
 
   const context: [string, string][] = [
     ["File", m.queue?.name ?? "–"],
@@ -269,10 +283,10 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
         </section>
       </div>
       {review && mineHeroes[0] ? (
-        <MatchReview review={review} hero={mineHeroes[0].hero} allies={allies} enemies={enemies} />
+        <MatchReview review={review} hero={mineHeroes[0].hero} allies={allies} enemies={enemies} mine={mine} />
       ) : mine ? (
         <p className="card text-sm text-muted">
-          Pas encore de review pour cette partie : elle a besoin de la compo adverse.{" "}
+          Pas encore de bilan pour cette partie : il a besoin de la compo adverse.{" "}
           <Link href="/saisir?mode=capture" className="font-semibold text-accent hover:underline">
             Importe la capture du tableau des scores
           </Link>{" "}

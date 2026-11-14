@@ -12,6 +12,9 @@ import type { CaptureMember } from "./capture-import";
 import { MatchForm } from "./match-form";
 
 // L'écran d'import n'est chargé que lorsqu'on l'ouvre : la saisie rapide reste légère
+const CaptureLearn = dynamic(() => import("./capture-learn").then((m) => m.CaptureLearn), {
+  loading: () => <div className="card h-48 animate-pulse" aria-hidden />,
+});
 const CaptureImport = dynamic(() => import("./capture-import").then((m) => m.CaptureImport), {
   loading: () => <p className="card text-sm text-muted">Chargement de l&apos;import…</p>,
 });
@@ -31,6 +34,25 @@ export default async function SaisirPage({ searchParams }: { searchParams: Promi
   if (edit) {
     const { data } = await supabase.from("matches").select(MATCH_INPUT_COLS).eq("id", edit).eq("user_id", user.id).maybeSingle();
     if (data) editing = { ...toMatchInput(data), enemy_ids: await getEnemyIds(supabase, edit) };
+  }
+
+  // Apprentissage des portraits : nommer d'un coup les héros d'anciennes captures, sans créer de partie
+  if (mode === "portraits" && !editing) {
+    const fpRes = await supabase.from("capture_fingerprints").select("kind, hero_id, fp").limit(5000);
+    return (
+      <>
+        <PageHeader
+          title="Apprendre les portraits"
+          subtitle="Plus l'app connaît de portraits, moins tu as de héros à choisir à l'import. Ce que tu nommes ici sert à tout le groupe."
+          action={
+            <Link href="/saisir?mode=capture" className="text-sm font-semibold text-accent hover:underline">
+              Importer une partie
+            </Link>
+          }
+        />
+        <CaptureLearn heroes={refs.heroes} fingerprints={(fpRes.data ?? []) as Fingerprint[]} ready={!fpRes.error} />
+      </>
+    );
   }
 
   // Import d'une capture d'écran du tableau des scores : la lecture se fait dans le navigateur
@@ -56,9 +78,14 @@ export default async function SaisirPage({ searchParams }: { searchParams: Promi
           title="Importer une capture"
           subtitle="Dépose la capture du tableau des scores : la partie est lue, puis enregistrée pour toi et pour tes coéquipiers membres."
           action={
-            <Link href="/saisir" className="text-sm font-semibold text-accent hover:underline">
-              Saisie manuelle
-            </Link>
+            <span className="flex flex-wrap gap-x-4 gap-y-1">
+              <Link href="/saisir?mode=portraits" className="text-sm font-semibold text-accent hover:underline">
+                Apprendre les portraits
+              </Link>
+              <Link href="/saisir" className="text-sm font-semibold text-accent hover:underline">
+                Saisie manuelle
+              </Link>
+            </span>
           }
         />
         <CaptureImport

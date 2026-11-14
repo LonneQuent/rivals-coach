@@ -334,7 +334,7 @@ export function CaptureImport({
   return (
     <div className="flex flex-col gap-4">
       {!ready ? (
-        <p className="flex items-start gap-2 rounded-lg border border-accent/40 bg-warn-bg px-3 py-2 text-sm text-accent">
+        <p className="flex items-start gap-2 rounded-lg border border-accent/40 bg-accent/10 px-3 py-2 text-sm text-accent">
           <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
           L&apos;import n&apos;est pas encore activé : la migration 0017_capture_import.sql doit être exécutée dans Supabase.
         </p>
@@ -351,7 +351,7 @@ export function CaptureImport({
                 <span className="text-fg-2">{d.outcomes.map((o) => `${memberName(o.user_id)} : ${ACTION_LABEL[o.action]}`).join(" · ")}</span>
                 {d.mine ? (
                   <Link href={`/historique/${d.mine}`} className="font-semibold text-accent hover:underline">
-                    Voir la review
+                    Voir le bilan
                   </Link>
                 ) : null}
               </li>
@@ -412,7 +412,7 @@ export function CaptureImport({
       ) : null}
 
       {notices.length ? (
-        <ul className="flex flex-col gap-1 rounded-lg border border-accent/40 bg-warn-bg px-3 py-2 text-sm text-accent">
+        <ul className="flex flex-col gap-1 rounded-lg border border-accent/40 bg-accent/10 px-3 py-2 text-sm text-accent">
           {notices.map((n) => (
             <li key={n}>{n}</li>
           ))}

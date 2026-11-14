@@ -35,7 +35,10 @@ export default async function CompsPage() {
         <p>
           Retiens le triangle : le <strong className="text-fg">brawl</strong> bat le <strong className="text-fg">dive</strong>, le dive bat le{" "}
           <strong className="text-fg">poke</strong>, et le poke bat le brawl. Regarde ce que joue l&apos;équipe d&apos;en face, puis prends la compo qui la
-          contre parmi celles que vous savez jouer.
+          contre parmi celles que vous savez jouer.{" "}
+          <Link href="/guides/team-comps" className="font-semibold text-accent hover:underline">
+            Construire et contrer une compo
+          </Link>
         </p>
       </MascotTip>
 

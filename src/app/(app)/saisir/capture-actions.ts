@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { captureImportSchema, type CaptureImport, type ImportOutcome, type ImportResult } from "@/lib/capture/schema";
 
@@ -22,4 +23,23 @@ export async function importCapture(input: CaptureImport): Promise<ImportResult>
   revalidatePath("/");
   revalidatePath("/stats");
   return { ok: true, outcomes: (data ?? []) as ImportOutcome[] };
+}
+
+const learnSchema = z
+  .array(z.object({ kind: z.enum(["banner", "avatar"]), hero_id: z.number().int().positive(), fp: z.string().min(100).max(800).regex(/^[A-Za-z0-9+/=]+$/) }))
+  .min(1)
+  .max(300);
+
+/** Enregistre des portraits nommés, sans créer de partie : ils serviront à tout le groupe aux prochains imports. */
+export async function learnFingerprints(input: z.infer<typeof learnSchema>): Promise<{ ok: true; saved: number } | { ok: false; error: string }> {
+  const parsed = learnSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Portraits illisibles. Recharge la page et réessaie." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("learn_fingerprints", { p: parsed.data });
+  if (error) {
+    if (error.code === "PGRST202" || error.message.includes("learn_fingerprints")) return { ok: false, error: "L'apprentissage n'est pas encore activé : la migration 0019_duelist_comps_learning.sql doit être exécutée dans Supabase." };
+    return { ok: false, error: "L'enregistrement a échoué. Réessaie." };
+  }
+  revalidatePath("/saisir");
+  return { ok: true, saved: Number(data ?? 0) };
 }

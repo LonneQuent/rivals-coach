@@ -16,4 +16,5 @@ export const mapSlug = (name: string) =>
 export const GENERAL_GUIDES = [
   { slug: "game-sense", title: "Game sense", blurb: "Cooldowns, cycle d'ults, staggers, espace : lire la partie." },
   { slug: "solo-queue", title: "Survivre en solo queue", blurb: "Mental, flex, comms et réglages pour monter seul." },
+  { slug: "team-comps", title: "Construire et contrer une compo", blurb: "Brawl, dive, poke : qui bat qui, et quoi choisir pour compléter ton équipe." },
 ] as const;
